@@ -1,9 +1,10 @@
 import Phaser from 'phaser'
 
 import { SCENE_KEYS } from '@/assets'
-import { GAME_CONFIG, GAME_TITLE } from '@/config'
+import { GAME_TITLE } from '@/config'
 import { getScoreManager, resetScoreManagerSingleton } from '@/scoreManager'
 import { createStorageService } from '@/storageService'
+import { getFirstStageId, STAGE_IDS } from '@/stages'
 
 interface GameOverSceneData {
   completedRun?: boolean
@@ -19,7 +20,7 @@ export class GameOverScene extends Phaser.Scene {
 
   private reason: 'defeat' | 'timeout' = 'defeat'
 
-  private stageId = GAME_CONFIG.levels[0] ?? '1-1'
+  private stageId = getFirstStageId()
 
   public constructor() {
     super(SCENE_KEYS.gameOver)
@@ -29,13 +30,13 @@ export class GameOverScene extends Phaser.Scene {
     this.completedRun = data.completedRun === true
     this.finalScore = data.score ?? 0
     this.reason = data.reason ?? 'defeat'
-    this.stageId = data.stageId?.trim() || (GAME_CONFIG.levels[0] ?? '1-1')
+    this.stageId = data.stageId?.trim() || getFirstStageId()
   }
 
   public create(): void {
     const { width, height } = this.scale
     const headline = this.completedRun ? 'All Clear' : 'Game Over'
-    const storageService = createStorageService(GAME_CONFIG.levels)
+    const storageService = createStorageService(STAGE_IDS)
     const scoreManager = getScoreManager(storageService)
     const highScore = storageService.getHighScore()
     const remainingLives = scoreManager.getLives()

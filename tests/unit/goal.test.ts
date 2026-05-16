@@ -21,10 +21,10 @@ describe('resolveFlagpoleBonus', () => {
 
 describe('resolveNextStage', () => {
   it('returns the next configured stage when available', () => {
-    expect(resolveNextStage(['1-1', '1-2'], '1-1')).toBe('1-2')
+    expect(resolveNextStage('1-1')).toBe('1-2')
   })
 
   it('returns null on the final configured stage', () => {
-    expect(resolveNextStage(['1-1', '1-2'], '1-2')).toBeNull()
+    expect(resolveNextStage('1-2')).toBeNull()
   })
 })
