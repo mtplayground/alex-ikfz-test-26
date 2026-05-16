@@ -28,6 +28,8 @@ const GOAL_POLE_HEIGHT = 160
 const GOAL_POLE_OFFSET_X = 48
 const GOAL_POLE_ZONE_WIDTH = 18
 const GOAL_SLIDE_DURATION_MS = 900
+const STAGE_CLEAR_TIME_BONUS_PER_SECOND = 50
+const TIMEOUT_TRANSITION_DELAY_MS = 900
 
 interface GameSceneData {
   stageId?: string | null
@@ -100,11 +102,15 @@ export class GameScene extends Phaser.Scene {
 
   private lastGoalBonus = 0
 
+  private lastTimeBonus = 0
+
   private lastEnemyInteraction = 'none'
 
   private lastCollectibleEffect = 'none'
 
   private lastProjectileEvent = 'none'
+
+  private lastTimerEvent = 'running'
 
   public constructor() {
     super(SCENE_KEYS.game)
@@ -128,9 +134,11 @@ export class GameScene extends Phaser.Scene {
     this.lastHeadHitKey = undefined
     this.lastBlockAction = 'none'
     this.lastGoalBonus = 0
+    this.lastTimeBonus = 0
     this.lastEnemyInteraction = 'none'
     this.lastCollectibleEffect = 'none'
     this.lastProjectileEvent = 'none'
+    this.lastTimerEvent = 'running'
     this.stageTimeRemainingSeconds = GAME_CONFIG.stage.timeLimitSeconds
   }
 
@@ -438,12 +446,7 @@ export class GameScene extends Phaser.Scene {
       delay: 1000,
       loop: true,
       callback: () => {
-        if (this.goalState !== 'idle' || this.stageTimeRemainingSeconds <= 0) {
-          return
-        }
-
-        this.stageTimeRemainingSeconds -= 1
-        this.events.emit(STAGE_TIME_EVENT, this.stageTimeRemainingSeconds)
+        this.tickStageTimer()
       },
     })
   }
@@ -552,9 +555,15 @@ export class GameScene extends Phaser.Scene {
     this.goalState = 'sliding'
     this.lastBlockAction = 'goal'
     this.lastGoalBonus = resolveFlagpoleBonus(normalizedContactHeight)
+    this.lastTimeBonus =
+      this.stageTimeRemainingSeconds * STAGE_CLEAR_TIME_BONUS_PER_SECOND
+    this.lastTimerEvent = 'stage-clear'
 
     this.scoreManager.addScore(this.lastGoalBonus)
+    this.scoreManager.addScore(this.lastTimeBonus)
     this.storageService.setFurthestStage(nextStageId ?? this.currentStageId)
+    this.stageTimeRemainingSeconds = 0
+    this.events.emit(STAGE_TIME_EVENT, this.stageTimeRemainingSeconds)
 
     this.audioManager?.stopBgm()
     this.audioManager?.playSfx(ASSET_KEYS.audio.stageClear)
@@ -575,6 +584,7 @@ export class GameScene extends Phaser.Scene {
             this.scene.start(SCENE_KEYS.gameOver, {
               completedRun: true,
               score: this.scoreManager?.getScore() ?? 0,
+              reason: 'defeat',
             })
             return
           }
@@ -591,6 +601,48 @@ export class GameScene extends Phaser.Scene {
   private handleStageTimeChanged(timeRemainingSeconds: number): void {
     this.hud?.setTimeRemaining(timeRemainingSeconds)
     this.hud?.setStageId(this.currentStageId)
+  }
+
+  private tickStageTimer(): void {
+    if (
+      this.goalState !== 'idle' ||
+      this.player === undefined ||
+      this.player.isDead() ||
+      this.stageTimeRemainingSeconds <= 0
+    ) {
+      return
+    }
+
+    this.stageTimeRemainingSeconds -= 1
+    this.events.emit(STAGE_TIME_EVENT, this.stageTimeRemainingSeconds)
+
+    if (this.stageTimeRemainingSeconds === 0) {
+      this.handleTimeExpired()
+    }
+  }
+
+  private handleTimeExpired(): void {
+    if (
+      this.player === undefined ||
+      this.scoreManager === undefined ||
+      this.goalState !== 'idle'
+    ) {
+      return
+    }
+
+    this.goalState = 'complete'
+    this.lastTimerEvent = 'expired'
+    this.lastEnemyInteraction = 'time-up'
+    this.audioManager?.stopBgm()
+    this.player.defeat()
+
+    this.time.delayedCall(TIMEOUT_TRANSITION_DELAY_MS, () => {
+      this.scene.start(SCENE_KEYS.gameOver, {
+        completedRun: false,
+        score: this.scoreManager?.getScore() ?? 0,
+        reason: 'timeout',
+      })
+    })
   }
 
   private handlePlayerTileCollision(tile: Phaser.Tilemaps.Tile): void {
@@ -974,6 +1026,8 @@ export class GameScene extends Phaser.Scene {
     ).padStart(3, '0')
     this.game.canvas.dataset.goalState = this.goalState
     this.game.canvas.dataset.goalBonus = String(this.lastGoalBonus)
+    this.game.canvas.dataset.timeBonus = String(this.lastTimeBonus)
+    this.game.canvas.dataset.timerEvent = this.lastTimerEvent
     this.game.canvas.dataset.goombaCount = String(
       this.goombas?.countActive(true) ?? 0,
     )

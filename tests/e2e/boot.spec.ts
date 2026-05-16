@@ -173,6 +173,9 @@ test('reaching the goal flagpole advances to the next configured stage', async (
     const player = scene?.player as
       | { setPosition: (x: number, y: number) => void }
       | undefined
+    const stageTimerScene = scene as
+      | { stageTimeRemainingSeconds?: number }
+      | undefined
     const goalPoleX = scene?.goalPoleX as number | undefined
     const goalPoleTopY = scene?.goalPoleTopY as number | undefined
 
@@ -184,6 +187,7 @@ test('reaching the goal flagpole advances to the next configured stage', async (
       throw new Error('Missing game-scene debug handles for goal test.')
     }
 
+    stageTimerScene.stageTimeRemainingSeconds = 3
     player.setPosition(goalPoleX, goalPoleTopY + 20)
   })
 
@@ -192,11 +196,61 @@ test('reaching the goal flagpole advances to the next configured stage', async (
 
     return (
       canvasElement?.dataset.scene === 'game-scene' &&
-      canvasElement?.dataset.stageId === '1-2'
+      canvasElement?.dataset.stageId === '1-2' &&
+      canvasElement?.dataset.score === '5150'
     )
   })
   await expect(canvas).toHaveAttribute('data-goal-state', 'idle')
   await expect(canvas).toHaveAttribute('data-stage-id', '1-2')
+  await expect(canvas).toHaveAttribute('data-score', '5150')
+})
+
+test('stage timer expiration defeats the player and transitions to game over', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+
+  await page.evaluate(() => {
+    const game = (
+      window as typeof window & {
+        __zeroclawGame?: {
+          scene: {
+            getScene(key: string): Record<string, unknown>
+          }
+        }
+      }
+    ).__zeroclawGame
+
+    const scene = game?.scene.getScene('game-scene') as
+      | {
+          stageTimeRemainingSeconds?: number
+          tickStageTimer?: () => void
+        }
+      | undefined
+
+    if (scene?.tickStageTimer === undefined) {
+      throw new Error('Missing timer debug hooks for timeout test.')
+    }
+
+    scene.stageTimeRemainingSeconds = 1
+    scene.tickStageTimer()
+  })
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return canvasElement?.dataset.scene === 'game-over-scene'
+  })
+
+  await expect(canvas).toHaveAttribute('data-game-over-completed-run', 'false')
+  await expect(canvas).toHaveAttribute('data-game-over-reason', 'timeout')
 })
 
 test('goomba stomp removes the enemy', async ({ page }) => {
