@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 
 import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
 import { getAudioManager, type AudioManager } from '@/audioManager'
-import { resolveBlockHit } from '@/blocks'
+import { resolveBlockHit, shouldProcessBlockHit } from '@/blocks'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
@@ -347,18 +347,18 @@ export class GameScene extends Phaser.Scene {
     }
 
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body
+    const collisionDecision = shouldProcessBlockHit({
+      blockedUp: playerBody.blocked.up,
+      lastHeadHitKey: this.lastHeadHitKey,
+      tileX: tile.x,
+      tileY: tile.y,
+    })
 
-    if (!playerBody.blocked.up) {
+    if (!collisionDecision.shouldProcess) {
       return
     }
 
-    const tileKey = `${tile.x}:${tile.y}`
-
-    if (this.lastHeadHitKey === tileKey) {
-      return
-    }
-
-    this.lastHeadHitKey = tileKey
+    this.lastHeadHitKey = collisionDecision.nextHeadHitKey
 
     const resolution = resolveBlockHit(tile.index, this.player.getPowerState())
 
