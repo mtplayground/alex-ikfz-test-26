@@ -1,12 +1,15 @@
 import Phaser from 'phaser'
 
 import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
+import { getAudioManager, type AudioManager } from '@/audioManager'
 import { GAME_TITLE } from '@/config'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
 import type { PlayerDamageResult } from '@/entities/player/playerState'
 
 export class PlayerPreviewScene extends Phaser.Scene {
+  private audioManager?: AudioManager
+
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
 
   private shiftKey?: Phaser.Input.Keyboard.Key
@@ -44,6 +47,11 @@ export class PlayerPreviewScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor('#082f49')
     this.physics.world.setBounds(0, 0, width, height)
+
+    this.audioManager = getAudioManager(this)
+    this.audioManager.registerDefaultSfx()
+    this.audioManager.bindUnlockOnFirstInteraction()
+    this.audioManager.switchBgm(ASSET_KEYS.audio.overworldTheme)
 
     Player.ensureAnimations(this)
 
@@ -142,7 +150,7 @@ export class PlayerPreviewScene extends Phaser.Scene {
     this.player.updateMovement(controls)
 
     if (controls.jumpPressed) {
-      this.sound.play(ASSET_KEYS.audio.jump)
+      this.audioManager?.playSfx(ASSET_KEYS.audio.jump)
     }
 
     this.syncCanvasState()
@@ -195,6 +203,7 @@ export class PlayerPreviewScene extends Phaser.Scene {
     ) {
       this.player.forcePowerState('small')
       this.lastDamageResult = undefined
+      this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
       this.eventText?.setText('Forced player to Small form.')
       return
     }
@@ -205,6 +214,7 @@ export class PlayerPreviewScene extends Phaser.Scene {
     ) {
       this.player.applyPowerState('big')
       this.lastDamageResult = undefined
+      this.audioManager?.playSfx(ASSET_KEYS.audio.powerup)
       this.eventText?.setText('Promoted player to Big form.')
       return
     }
@@ -215,12 +225,14 @@ export class PlayerPreviewScene extends Phaser.Scene {
     ) {
       this.player.applyPowerState('fire')
       this.lastDamageResult = undefined
+      this.audioManager?.playSfx(ASSET_KEYS.audio.powerup)
       this.eventText?.setText('Promoted player to Fire form.')
       return
     }
 
     if (this.hKey !== undefined && Phaser.Input.Keyboard.JustDown(this.hKey)) {
       this.lastDamageResult = this.player.applyDamage()
+      this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
 
       if (!this.lastDamageResult.accepted) {
         this.eventText?.setText(
