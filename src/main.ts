@@ -4,6 +4,7 @@ import Phaser from 'phaser'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
 import { BootScene } from '@/scenes/BootScene'
 import { GameScene } from '@/scenes/GameScene'
+import { GameOverScene } from '@/scenes/GameOverScene'
 import { MenuScene } from '@/scenes/MenuScene'
 import { PlayerPreviewScene } from '@/scenes/PlayerPreviewScene'
 
@@ -30,7 +31,15 @@ const config: Phaser.Types.Core.GameConfig = {
       },
     },
   },
-  scene: [BootScene, MenuScene, GameScene, PlayerPreviewScene],
+  scene: [BootScene, MenuScene, GameScene, GameOverScene, PlayerPreviewScene],
 }
 
-void new Phaser.Game(config)
+const game = new Phaser.Game(config)
+
+if (import.meta.env.DEV) {
+  ;(
+    globalThis as typeof globalThis & {
+      __zeroclawGame?: Phaser.Game
+    }
+  ).__zeroclawGame = game
+}

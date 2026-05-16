@@ -80,3 +80,57 @@ test('game scene keeps the camera inside world bounds while the player moves', a
   expect(cameraScrollX).toBeGreaterThanOrEqual(0)
   expect(cameraScrollX).toBeLessThanOrEqual(mapWidth)
 })
+
+test('reaching the goal flagpole advances to the next configured stage', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+  await expect(canvas).toHaveAttribute('data-stage-id', '1-1')
+
+  await page.evaluate(() => {
+    const game = (
+      window as typeof window & {
+        __zeroclawGame?: {
+          scene: {
+            getScene(key: string): Record<string, unknown>
+          }
+        }
+      }
+    ).__zeroclawGame
+
+    const scene = game?.scene.getScene('game-scene')
+    const player = scene?.player as
+      | { setPosition: (x: number, y: number) => void }
+      | undefined
+    const goalPoleX = scene?.goalPoleX as number | undefined
+    const goalPoleTopY = scene?.goalPoleTopY as number | undefined
+
+    if (
+      player === undefined ||
+      goalPoleX === undefined ||
+      goalPoleTopY === undefined
+    ) {
+      throw new Error('Missing game-scene debug handles for goal test.')
+    }
+
+    player.setPosition(goalPoleX, goalPoleTopY + 20)
+  })
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return (
+      canvasElement?.dataset.scene === 'game-scene' &&
+      canvasElement?.dataset.stageId === '1-2'
+    )
+  })
+  await expect(canvas).toHaveAttribute('data-goal-state', 'idle')
+  await expect(canvas).toHaveAttribute('data-stage-id', '1-2')
+})

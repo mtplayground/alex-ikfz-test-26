@@ -3,6 +3,7 @@ export const SCENE_KEYS = {
   menu: 'menu-scene',
   playerPreview: 'player-preview-scene',
   game: 'game-scene',
+  gameOver: 'game-over-scene',
 } as const
 
 export const ASSET_KEYS = {
@@ -19,6 +20,7 @@ export const ASSET_KEYS = {
   },
   audio: {
     overworldTheme: 'overworld-theme',
+    stageClear: 'stage-clear',
     jump: 'jump',
     coin: 'coin',
     powerup: 'powerup',
@@ -64,6 +66,10 @@ export const AUDIO_ASSETS = [
     audioURL: '/assets/audio/bgm/overworld-theme.wav',
   },
   {
+    key: ASSET_KEYS.audio.stageClear,
+    audioURL: '/assets/audio/bgm/stage-clear.wav',
+  },
+  {
     key: ASSET_KEYS.audio.jump,
     audioURL: '/assets/audio/sfx/jump.wav',
   },
@@ -107,6 +113,7 @@ export const CODE_REFERENCED_ASSET_KEYS = {
     ASSET_KEYS.tilesets.overworld,
     ASSET_KEYS.tilemaps.world11,
     ASSET_KEYS.audio.overworldTheme,
+    ASSET_KEYS.audio.stageClear,
     ASSET_KEYS.audio.jump,
   ],
 } as const
