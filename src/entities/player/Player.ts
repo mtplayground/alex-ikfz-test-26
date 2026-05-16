@@ -11,18 +11,16 @@ import {
   type PlayerJumpState,
 } from '@/entities/player/playerMotion'
 import {
+  ensurePlayerAnimations,
+  PLAYER_ANIMATION_KEYS,
+} from '@/entities/player/playerAnimations'
+import {
   resolveDamageState,
   resolvePowerStateUpgrade,
   type PlayerDamageResult,
   type PlayerLifeState,
   type PlayerPowerState,
 } from '@/entities/player/playerState'
-
-const PLAYER_ANIMATION_KEYS = {
-  idle: 'player-idle',
-  walk: 'player-walk',
-  run: 'player-run',
-} as const
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private powerState: PlayerLifeState = 'small'
@@ -48,41 +46,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   public static ensureAnimations(scene: Phaser.Scene): void {
-    const animationManager = scene.anims
-
-    if (!animationManager.exists(PLAYER_ANIMATION_KEYS.idle)) {
-      animationManager.create({
-        key: PLAYER_ANIMATION_KEYS.idle,
-        frames: [{ key: ASSET_KEYS.atlases.player, frame: 'player-idle-0' }],
-        frameRate: 1,
-        repeat: -1,
-      })
-    }
-
-    if (!animationManager.exists(PLAYER_ANIMATION_KEYS.walk)) {
-      animationManager.create({
-        key: PLAYER_ANIMATION_KEYS.walk,
-        frames: [
-          { key: ASSET_KEYS.atlases.player, frame: 'player-walk-0' },
-          { key: ASSET_KEYS.atlases.player, frame: 'player-walk-1' },
-        ],
-        frameRate: 6,
-        repeat: -1,
-      })
-    }
-
-    if (!animationManager.exists(PLAYER_ANIMATION_KEYS.run)) {
-      animationManager.create({
-        key: PLAYER_ANIMATION_KEYS.run,
-        frames: [
-          { key: ASSET_KEYS.atlases.player, frame: 'player-walk-0' },
-          { key: ASSET_KEYS.atlases.player, frame: 'player-walk-1' },
-          { key: ASSET_KEYS.atlases.player, frame: 'player-jump-0' },
-        ],
-        frameRate: 10,
-        repeat: -1,
-      })
-    }
+    ensurePlayerAnimations(scene.anims, ASSET_KEYS.atlases.player)
   }
 
   public updateMovement(controls: PlayerControls): void {

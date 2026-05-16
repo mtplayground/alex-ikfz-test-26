@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { GAME_CONFIG } from '@/config'
 import {
   resolveHorizontalMotion,
   resolveVerticalMotion,
@@ -35,6 +36,29 @@ describe('player horizontal motion', () => {
     expect(motion.animation).toBe('run')
     expect(motion.facing).toBe('right')
     expect(motion.velocityX).toBeGreaterThan(0)
+  })
+
+  it('returns walking motion to the left and flips facing', () => {
+    const motion = resolveHorizontalMotion(controlsFrom({ left: true }), 'right')
+
+    expect(motion.animation).toBe('walk')
+    expect(motion.facing).toBe('left')
+    expect(motion.velocityX).toBe(-GAME_CONFIG.player.walkSpeed)
+  })
+
+  it('moves faster while running than while walking', () => {
+    const walkingMotion = resolveHorizontalMotion(
+      controlsFrom({ right: true }),
+      'right',
+    )
+    const runningMotion = resolveHorizontalMotion(
+      controlsFrom({ right: true, run: true }),
+      'right',
+    )
+
+    expect(Math.abs(runningMotion.velocityX)).toBeGreaterThan(
+      Math.abs(walkingMotion.velocityX),
+    )
   })
 })
 
