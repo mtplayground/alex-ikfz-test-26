@@ -1,32 +1,7 @@
 import './style.css'
 
 import Phaser from 'phaser'
-
-class MinimalScene extends Phaser.Scene {
-  public constructor() {
-    super('minimal-scene')
-  }
-
-  public create(): void {
-    this.cameras.main.setBackgroundColor('#111827')
-
-    this.add
-      .text(400, 225, 'Phaser + Vite + TypeScript', {
-        color: '#f8fafc',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '28px',
-      })
-      .setOrigin(0.5)
-
-    this.add
-      .text(400, 270, 'Issue #1 bootstrap is running.', {
-        color: '#94a3b8',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '16px',
-      })
-      .setOrigin(0.5)
-  }
-}
+import { BootScene } from '@/scenes/BootScene'
 
 const container = document.getElementById('app')
 
@@ -40,7 +15,7 @@ const config: Phaser.Types.Core.GameConfig = {
   width: 800,
   height: 450,
   backgroundColor: '#111827',
-  scene: MinimalScene,
+  scene: [BootScene],
 }
 
 void new Phaser.Game(config)
