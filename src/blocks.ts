@@ -23,6 +23,49 @@ export interface BlockHitResolution {
   nextTileIndex?: number
 }
 
+export interface BlockHitCollisionState {
+  blockedUp: boolean
+  lastHeadHitKey?: string
+  tileX: number
+  tileY: number
+}
+
+export interface BlockHitCollisionDecision {
+  shouldProcess: boolean
+  nextHeadHitKey?: string
+}
+
+export function createBlockHitKey(tileX: number, tileY: number): string {
+  return `${tileX}:${tileY}`
+}
+
+export function shouldProcessBlockHit({
+  blockedUp,
+  lastHeadHitKey,
+  tileX,
+  tileY,
+}: BlockHitCollisionState): BlockHitCollisionDecision {
+  if (!blockedUp) {
+    return {
+      shouldProcess: false,
+    }
+  }
+
+  const nextHeadHitKey = createBlockHitKey(tileX, tileY)
+
+  if (lastHeadHitKey === nextHeadHitKey) {
+    return {
+      shouldProcess: false,
+      nextHeadHitKey,
+    }
+  }
+
+  return {
+    shouldProcess: true,
+    nextHeadHitKey,
+  }
+}
+
 export function resolveBlockHit(
   tileIndex: number,
   playerPowerState: PlayerLifeState,
