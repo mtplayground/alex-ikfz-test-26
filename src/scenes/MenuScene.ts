@@ -1,9 +1,10 @@
 import Phaser from 'phaser'
 
 import type { StorageLike, StorageService } from '@/storageService'
+import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
+import { getAudioManager } from '@/audioManager'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
 import { createStorageService, resolveBrowserStorage } from '@/storageService'
-import { SCENE_KEYS } from '@/assets'
 
 type MenuAction = 'start' | 'continue' | 'reset'
 
@@ -42,6 +43,11 @@ export class MenuScene extends Phaser.Scene {
     this.storageService = createStorageService(GAME_CONFIG.levels, this.storage)
 
     this.cameras.main.setBackgroundColor('#0f172a')
+
+    const audioManager = getAudioManager(this)
+    audioManager.registerDefaultSfx()
+    audioManager.bindUnlockOnFirstInteraction()
+    audioManager.playBgm(ASSET_KEYS.audio.overworldTheme)
 
     this.add
       .text(width / 2, 82, GAME_TITLE, {
@@ -119,6 +125,8 @@ export class MenuScene extends Phaser.Scene {
     this.selectedIndex =
       (this.selectedIndex + delta + optionCount) % optionCount
 
+    getAudioManager(this).playSfx(ASSET_KEYS.audio.coin)
+
     this.refreshMenu()
   }
 
@@ -146,15 +154,18 @@ export class MenuScene extends Phaser.Scene {
     const startingStage = GAME_CONFIG.levels[0] ?? '1-1'
 
     this.storageService.setFurthestStage(startingStage)
+    getAudioManager(this).playSfx(ASSET_KEYS.audio.powerup)
     this.scene.start(SCENE_KEYS.playerPreview)
   }
 
   private continueGame(): void {
     if (this.storageService.getFurthestStage() === null) {
+      getAudioManager(this).playSfx(ASSET_KEYS.audio.stomp)
       this.refreshMenu('No saved run is available yet. Start a new game first.')
       return
     }
 
+    getAudioManager(this).playSfx(ASSET_KEYS.audio.powerup)
     this.scene.start(SCENE_KEYS.playerPreview)
   }
 
@@ -164,6 +175,7 @@ export class MenuScene extends Phaser.Scene {
     this.storageService.reset()
     this.storageService.setHighScore(retainedHighScore)
 
+    getAudioManager(this).playSfx(ASSET_KEYS.audio.stomp)
     this.refreshMenu('Saved progress cleared. High score retained.')
   }
 
