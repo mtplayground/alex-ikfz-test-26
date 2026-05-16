@@ -57,3 +57,55 @@ test('guards Continue when no save exists, then starts and exercises the jump pr
     return canvasElement?.dataset.playerGrounded === 'true'
   })
 })
+
+test('supports state upgrades, downgrade damage, and small-form death', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('ArrowDown')
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'continue')
+  await page.keyboard.press('ArrowUp')
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'player-preview-scene')
+
+  await expect(canvas).toHaveAttribute('data-player-power-state', 'small')
+
+  await page.keyboard.press('2')
+  await expect(canvas).toHaveAttribute('data-player-power-state', 'big')
+
+  await page.keyboard.press('3')
+  await expect(canvas).toHaveAttribute('data-player-power-state', 'fire')
+
+  await page.keyboard.press('H')
+  await expect(canvas).toHaveAttribute('data-player-power-state', 'big')
+  await expect(canvas).toHaveAttribute('data-player-invulnerable', 'true')
+
+  await page.keyboard.press('H')
+  await expect(canvas).toHaveAttribute('data-player-power-state', 'big')
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return canvasElement?.dataset.playerInvulnerable === 'false'
+  })
+
+  await page.keyboard.press('H')
+  await expect(canvas).toHaveAttribute('data-player-power-state', 'small')
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return canvasElement?.dataset.playerInvulnerable === 'false'
+  })
+
+  await page.keyboard.press('H')
+  await expect(canvas).toHaveAttribute('data-player-power-state', 'dead')
+  await expect(canvas).toHaveAttribute('data-player-dead', 'true')
+  await expect(canvas).toHaveAttribute('data-player-damage-defeated', 'true')
+})
