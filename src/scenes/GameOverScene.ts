@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 
 import { SCENE_KEYS } from '@/assets'
 import { GAME_TITLE } from '@/config'
+import { InputManager } from '@/input/InputManager'
 import { getScoreManager, resetScoreManagerSingleton } from '@/scoreManager'
 import { createStorageService } from '@/storageService'
 import { getFirstStageId, STAGE_IDS } from '@/stages'
@@ -22,6 +23,10 @@ export class GameOverScene extends Phaser.Scene {
 
   private stageId = getFirstStageId()
 
+  private shouldRetryStage = false
+
+  private inputManager?: InputManager
+
   public constructor() {
     super(SCENE_KEYS.gameOver)
   }
@@ -40,7 +45,7 @@ export class GameOverScene extends Phaser.Scene {
     const scoreManager = getScoreManager(storageService)
     const highScore = storageService.getHighScore()
     const remainingLives = scoreManager.getLives()
-    const shouldRetryStage = !this.completedRun && remainingLives > 0
+    this.shouldRetryStage = !this.completedRun && remainingLives > 0
     const subhead = this.completedRun
       ? 'Thanks for playing. Every configured stage is complete.'
       : this.reason === 'timeout'
@@ -48,7 +53,7 @@ export class GameOverScene extends Phaser.Scene {
         : 'The run has ended.'
     const actionText = this.completedRun
       ? 'Press Enter to return to the menu'
-      : shouldRetryStage
+      : this.shouldRetryStage
         ? `Press Enter to retry ${this.stageId}`
         : 'Press Enter to return to the menu'
 
@@ -107,18 +112,8 @@ export class GameOverScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
-    this.input.keyboard?.once('keydown-ENTER', () => {
-      if (shouldRetryStage) {
-        this.scene.start(SCENE_KEYS.game, {
-          stageId: this.stageId,
-          resetRun: false,
-        })
-        return
-      }
-
-      resetScoreManagerSingleton()
-      this.scene.start(SCENE_KEYS.menu)
-    })
+    this.inputManager = new InputManager(this)
+    this.inputManager.update()
 
     this.game.canvas.dataset.scene = SCENE_KEYS.gameOver
     this.game.canvas.dataset.gameOverCompletedRun = String(this.completedRun)
@@ -127,6 +122,27 @@ export class GameOverScene extends Phaser.Scene {
     this.game.canvas.dataset.gameOverStageId = this.stageId
     this.game.canvas.dataset.gameOverLives = String(remainingLives)
     this.game.canvas.dataset.gameOverHighScore = String(highScore)
-    this.game.canvas.dataset.gameOverRetryAvailable = String(shouldRetryStage)
+    this.game.canvas.dataset.gameOverRetryAvailable = String(
+      this.shouldRetryStage,
+    )
+  }
+
+  public override update(): void {
+    this.inputManager?.update()
+
+    if (!this.inputManager?.justPressed('confirm')) {
+      return
+    }
+
+    if (this.shouldRetryStage) {
+      this.scene.start(SCENE_KEYS.game, {
+        stageId: this.stageId,
+        resetRun: false,
+      })
+      return
+    }
+
+    resetScoreManagerSingleton()
+    this.scene.start(SCENE_KEYS.menu)
   }
 }

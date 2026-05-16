@@ -3,6 +3,7 @@ import Phaser from 'phaser'
 import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
 import { getAudioManager, type AudioManager } from '@/audioManager'
 import { GAME_TITLE } from '@/config'
+import { InputManager } from '@/input/InputManager'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
 import type { PlayerDamageResult } from '@/entities/player/playerState'
@@ -10,17 +11,7 @@ import type { PlayerDamageResult } from '@/entities/player/playerState'
 export class PlayerPreviewScene extends Phaser.Scene {
   private audioManager?: AudioManager
 
-  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
-
-  private shiftKey?: Phaser.Input.Keyboard.Key
-
-  private zKey?: Phaser.Input.Keyboard.Key
-
-  private spaceKey?: Phaser.Input.Keyboard.Key
-
-  private aKey?: Phaser.Input.Keyboard.Key
-
-  private dKey?: Phaser.Input.Keyboard.Key
+  private inputManager?: InputManager
 
   private oneKey?: Phaser.Input.Keyboard.Key
 
@@ -101,16 +92,8 @@ export class PlayerPreviewScene extends Phaser.Scene {
     this.player = new Player(this, width / 2, height - 72)
     this.physics.add.collider(this.player, ground)
 
-    this.cursors = this.input.keyboard?.createCursorKeys()
-    this.shiftKey = this.input.keyboard?.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SHIFT,
-    )
-    this.zKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.Z)
-    this.spaceKey = this.input.keyboard?.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SPACE,
-    )
-    this.aKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A)
-    this.dKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D)
+    this.inputManager = new InputManager(this)
+    this.inputManager.update()
     this.oneKey = this.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.ONE,
     )
@@ -131,19 +114,14 @@ export class PlayerPreviewScene extends Phaser.Scene {
       return
     }
 
-    const jumpHeld =
-      this.zKey?.isDown === true || this.spaceKey?.isDown === true
-    const jumpPressed =
-      (this.zKey !== undefined && Phaser.Input.Keyboard.JustDown(this.zKey)) ||
-      (this.spaceKey !== undefined &&
-        Phaser.Input.Keyboard.JustDown(this.spaceKey))
+    this.inputManager?.update()
 
     const controls: PlayerControls = {
-      left: this.cursors?.left.isDown === true || this.aKey?.isDown === true,
-      right: this.cursors?.right.isDown === true || this.dKey?.isDown === true,
-      run: this.shiftKey?.isDown === true,
-      jumpPressed,
-      jumpHeld,
+      left: this.inputManager?.isDown('left') === true,
+      right: this.inputManager?.isDown('right') === true,
+      run: this.inputManager?.isDown('run') === true,
+      jumpPressed: this.inputManager?.justPressed('jump') === true,
+      jumpHeld: this.inputManager?.isDown('jump') === true,
     }
 
     this.handleDebugStateControls()
