@@ -4,6 +4,8 @@ import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
 import { getAudioManager, type AudioManager } from '@/audioManager'
 import { resolveBlockHit, shouldProcessBlockHit } from '@/blocks'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
+import { Goomba } from '@/enemies/Goomba'
+import { isGoombaStompCollision } from '@/enemies/goombaLogic'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
 import { resolveFlagpoleBonus, resolveNextStage } from '@/goal'
@@ -51,6 +53,8 @@ export class GameScene extends Phaser.Scene {
 
   private goalZone?: Phaser.GameObjects.Zone
 
+  private goombas?: Phaser.Physics.Arcade.Group
+
   private worldWidth = 0
 
   private worldHeight = 0
@@ -72,6 +76,8 @@ export class GameScene extends Phaser.Scene {
   private lastBlockAction = 'none'
 
   private lastGoalBonus = 0
+
+  private lastEnemyInteraction = 'none'
 
   public constructor() {
     super(SCENE_KEYS.game)
@@ -95,6 +101,7 @@ export class GameScene extends Phaser.Scene {
     this.lastHeadHitKey = undefined
     this.lastBlockAction = 'none'
     this.lastGoalBonus = 0
+    this.lastEnemyInteraction = 'none'
   }
 
   public create(): void {
@@ -113,6 +120,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     Player.ensureAnimations(this)
+    Goomba.ensureAnimations(this)
 
     const map = this.make.tilemap({ key: ASSET_KEYS.tilemaps.world11 })
     const tileset = map.addTilesetImage(
@@ -149,6 +157,8 @@ export class GameScene extends Phaser.Scene {
       this,
     )
 
+    this.createGoombas()
+
     this.createGoalPole()
 
     if (this.goalZone !== undefined) {
@@ -157,6 +167,19 @@ export class GameScene extends Phaser.Scene {
         this.goalZone,
         () => {
           this.handleGoalReached()
+        },
+        undefined,
+        this,
+      )
+    }
+
+    if (this.goombas !== undefined) {
+      this.physics.add.collider(this.goombas, worldLayer)
+      this.physics.add.collider(
+        this.player,
+        this.goombas,
+        (_player, enemy) => {
+          this.handlePlayerGoombaCollision(enemy as Goomba)
         },
         undefined,
         this,
@@ -199,6 +222,10 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.updateGoalSequence()
     }
+
+    this.goombas?.getChildren().forEach((enemy) => {
+      ;(enemy as Goomba).updatePatrol()
+    })
 
     const map = this.worldLayer?.tilemap
 
@@ -249,6 +276,16 @@ export class GameScene extends Phaser.Scene {
 
     playerBody.setVelocity(0, 0)
     this.player.setX(this.goalPoleX)
+  }
+
+  private createGoombas(): void {
+    const goomba = new Goomba(this, 392, this.worldHeight - 50)
+
+    this.goombas = this.physics.add.group({
+      allowGravity: true,
+      immovable: false,
+    })
+    this.goombas.add(goomba)
   }
 
   private createGoalPole(): void {
@@ -404,6 +441,39 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private handlePlayerGoombaCollision(goomba: Goomba): void {
+    if (
+      this.player === undefined ||
+      this.goalState !== 'idle' ||
+      goomba.isDefeated()
+    ) {
+      return
+    }
+
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body
+    const goombaBody = goomba.body as Phaser.Physics.Arcade.Body
+
+    if (
+      isGoombaStompCollision({
+        playerBottom: playerBody.bottom,
+        enemyTop: goombaBody.top,
+        playerVelocityY: playerBody.velocity.y,
+      })
+    ) {
+      this.lastEnemyInteraction = 'stomp'
+      this.scoreManager?.addScore(100)
+      this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
+      goomba.squash()
+      playerBody.setVelocityY(
+        Math.min(playerBody.velocity.y, GAME_CONFIG.player.jumpVelocity * 0.45),
+      )
+      return
+    }
+
+    this.lastEnemyInteraction = 'hurt'
+    this.player.applyDamage()
+  }
+
   private animateTileBump(tile: Phaser.Tilemaps.Tile): void {
     const marker = this.add.rectangle(
       tile.getCenterX(),
@@ -525,5 +595,9 @@ export class GameScene extends Phaser.Scene {
     this.game.canvas.dataset.nextStageId = nextStageId ?? ''
     this.game.canvas.dataset.goalState = this.goalState
     this.game.canvas.dataset.goalBonus = String(this.lastGoalBonus)
+    this.game.canvas.dataset.goombaCount = String(
+      this.goombas?.countActive(true) ?? 0,
+    )
+    this.game.canvas.dataset.lastEnemyInteraction = this.lastEnemyInteraction
   }
 }
