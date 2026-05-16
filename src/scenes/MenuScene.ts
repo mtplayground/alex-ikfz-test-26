@@ -1,13 +1,8 @@
 import Phaser from 'phaser'
 
-import type { MenuSaveData, StorageLike } from '@/menuStorage'
+import type { StorageLike, StorageService } from '@/storageService'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
-import {
-  readMenuSave,
-  resetMenuSave,
-  resolveBrowserStorage,
-  writeMenuSave,
-} from '@/menuStorage'
+import { createStorageService, resolveBrowserStorage } from '@/storageService'
 import { SCENE_KEYS } from '@/assets'
 
 type MenuAction = 'start' | 'continue' | 'reset'
@@ -28,7 +23,7 @@ export class MenuScene extends Phaser.Scene {
 
   private storage: StorageLike | undefined
 
-  private saveData!: MenuSaveData
+  private storageService!: StorageService
 
   private highScoreText?: Phaser.GameObjects.Text
 
@@ -44,7 +39,7 @@ export class MenuScene extends Phaser.Scene {
     const { width, height } = this.scale
 
     this.storage = resolveBrowserStorage()
-    this.saveData = readMenuSave(this.storage, GAME_CONFIG.levels)
+    this.storageService = createStorageService(GAME_CONFIG.levels, this.storage)
 
     this.cameras.main.setBackgroundColor('#0f172a')
 
@@ -148,18 +143,14 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private startNewGame(): void {
-    this.saveData = {
-      hasSave: true,
-      highScore: this.saveData.highScore,
-      currentLevel: GAME_CONFIG.levels[0] ?? '1-1',
-    }
+    const startingStage = GAME_CONFIG.levels[0] ?? '1-1'
 
-    writeMenuSave(this.storage, this.saveData)
+    this.storageService.setFurthestStage(startingStage)
     this.scene.start(SCENE_KEYS.playerPreview)
   }
 
   private continueGame(): void {
-    if (!this.saveData.hasSave) {
+    if (this.storageService.getFurthestStage() === null) {
       this.refreshMenu('No saved run is available yet. Start a new game first.')
       return
     }
@@ -168,17 +159,20 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private resetProgress(): void {
-    const retainedHighScore = this.saveData.highScore
+    const retainedHighScore = this.storageService.getHighScore()
 
-    this.saveData = resetMenuSave(this.storage, GAME_CONFIG.levels)
-    this.saveData.highScore = retainedHighScore
-    writeMenuSave(this.storage, this.saveData)
+    this.storageService.reset()
+    this.storageService.setHighScore(retainedHighScore)
 
     this.refreshMenu('Saved progress cleared. High score retained.')
   }
 
   private refreshMenu(statusMessage?: string): void {
-    this.highScoreText?.setText(`High Score: ${this.saveData.highScore}`)
+    const highScore = this.storageService.getHighScore()
+    const furthestStage = this.storageService.getFurthestStage()
+    const hasSave = furthestStage !== null
+
+    this.highScoreText?.setText(`High Score: ${highScore}`)
 
     this.optionTexts.forEach((textObject, index) => {
       const option = this.menuOptions[index]
@@ -188,7 +182,7 @@ export class MenuScene extends Phaser.Scene {
       }
 
       const isSelected = index === this.selectedIndex
-      const isDisabled = option.action === 'continue' && !this.saveData.hasSave
+      const isDisabled = option.action === 'continue' && !hasSave
       const prefix = isSelected ? '▶ ' : '  '
       const suffix = isDisabled ? ' (Unavailable)' : ''
 
@@ -205,9 +199,9 @@ export class MenuScene extends Phaser.Scene {
       return
     }
 
-    if (this.saveData.hasSave) {
+    if (hasSave) {
       this.statusText?.setText(
-        `Current save: ${this.saveData.currentLevel} • Continue is available.`,
+        `Current save: ${furthestStage} • Continue is available.`,
       )
       this.syncCanvasState()
       return
@@ -220,11 +214,14 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private syncCanvasState(): void {
+    const furthestStage = this.storageService.getFurthestStage()
+    const highScore = this.storageService.getHighScore()
+
     this.game.canvas.dataset.menuSelection =
       this.menuOptions[this.selectedIndex]?.action ?? 'unknown'
-    this.game.canvas.dataset.menuHasSave = String(this.saveData.hasSave)
-    this.game.canvas.dataset.menuLevel = this.saveData.currentLevel
-    this.game.canvas.dataset.menuHighScore = String(this.saveData.highScore)
+    this.game.canvas.dataset.menuHasSave = String(furthestStage !== null)
+    this.game.canvas.dataset.menuLevel = furthestStage ?? ''
+    this.game.canvas.dataset.menuHighScore = String(highScore)
     this.game.canvas.dataset.menuStatus = this.statusText?.text ?? ''
   }
 }
