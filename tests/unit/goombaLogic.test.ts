@@ -35,6 +35,16 @@ describe('resolveGoombaPatrolDirection', () => {
       }),
     ).toBe(-1)
   })
+
+  it('prioritizes reversing away from the left wall when pinned on both sides', () => {
+    expect(
+      resolveGoombaPatrolDirection({
+        direction: -1,
+        blockedLeft: true,
+        blockedRight: true,
+      }),
+    ).toBe(1)
+  })
 })
 
 describe('isGoombaStompCollision', () => {

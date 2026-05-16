@@ -17,6 +17,16 @@ export interface CollectiblePickupEffect {
   starInvulnerabilityMs?: number
 }
 
+export interface CollectibleEffectScoreTarget {
+  addScore(points: number): unknown
+  addCoins(amount: number): unknown
+}
+
+export interface CollectibleEffectPlayerTarget {
+  applyPowerState(state: 'big' | 'fire'): unknown
+  grantStarInvulnerability(durationMs: number): unknown
+}
+
 export function resolveCollectiblePickup(
   kind: CollectibleKind,
 ): CollectiblePickupEffect {
@@ -44,5 +54,29 @@ export function resolveCollectiblePickup(
         coins: 0,
         starInvulnerabilityMs: GAME_CONFIG.player.starInvulnerabilityDurationMs,
       }
+  }
+}
+
+export function applyCollectiblePickupEffect(
+  effect: CollectiblePickupEffect,
+  dependencies: {
+    scoreTarget: CollectibleEffectScoreTarget
+    playerTarget: CollectibleEffectPlayerTarget
+  },
+): void {
+  dependencies.scoreTarget.addScore(effect.score)
+
+  if (effect.coins > 0) {
+    dependencies.scoreTarget.addCoins(effect.coins)
+  }
+
+  if (effect.powerState !== undefined) {
+    dependencies.playerTarget.applyPowerState(effect.powerState)
+  }
+
+  if (effect.starInvulnerabilityMs !== undefined) {
+    dependencies.playerTarget.grantStarInvulnerability(
+      effect.starInvulnerabilityMs,
+    )
   }
 }
