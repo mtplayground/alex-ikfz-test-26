@@ -7,13 +7,21 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 8080",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 8080"
+    "preview": "vite preview --host 0.0.0.0 --port 8080",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.3",
     "vite": "^7.1.12"
   }
 }
