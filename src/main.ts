@@ -18,7 +18,7 @@ if (container === null) {
 document.title = GAME_TITLE
 
 const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
+  type: Phaser.CANVAS,
   parent: container,
   width: GAME_CONFIG.canvas.width,
   height: GAME_CONFIG.canvas.height,
