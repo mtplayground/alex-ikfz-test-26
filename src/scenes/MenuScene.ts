@@ -114,6 +114,16 @@ export class MenuScene extends Phaser.Scene {
     this.inputManager = new InputManager(this)
     this.inputManager.update()
 
+    this.input.keyboard?.on('keydown-UP', () => {
+      this.moveSelection(-1)
+    })
+    this.input.keyboard?.on('keydown-DOWN', () => {
+      this.moveSelection(1)
+    })
+    this.input.keyboard?.on('keydown-ENTER', () => {
+      this.confirmSelection()
+    })
+
     this.refreshMenu()
   }
 
