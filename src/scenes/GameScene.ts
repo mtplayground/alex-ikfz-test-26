@@ -19,6 +19,7 @@ import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
 import { MAX_ACTIVE_FIREBALLS, resolveFireballDirection } from '@/fireball'
 import { resolveFlagpoleBonus, resolveNextStage } from '@/goal'
+import { InputManager } from '@/input/InputManager'
 import { getScoreManager, type ScoreManager } from '@/scoreManager'
 import { getFirstStageId, getStageDefinition, STAGE_IDS } from '@/stages'
 import { createStorageService, type StorageService } from '@/storageService'
@@ -47,19 +48,7 @@ export class GameScene extends Phaser.Scene {
 
   private scoreManager?: ScoreManager
 
-  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
-
-  private shiftKey?: Phaser.Input.Keyboard.Key
-
-  private zKey?: Phaser.Input.Keyboard.Key
-
-  private spaceKey?: Phaser.Input.Keyboard.Key
-
-  private aKey?: Phaser.Input.Keyboard.Key
-
-  private dKey?: Phaser.Input.Keyboard.Key
-
-  private xKey?: Phaser.Input.Keyboard.Key
+  private inputManager?: InputManager
 
   private player?: Player
 
@@ -333,17 +322,8 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight)
     this.syncCameraToPlayer()
 
-    this.cursors = this.input.keyboard?.createCursorKeys()
-    this.shiftKey = this.input.keyboard?.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SHIFT,
-    )
-    this.zKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.Z)
-    this.spaceKey = this.input.keyboard?.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SPACE,
-    )
-    this.aKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A)
-    this.dKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D)
-    this.xKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.X)
+    this.inputManager = new InputManager(this)
+    this.inputManager.update()
 
     this.syncCanvasState(map)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -358,6 +338,8 @@ export class GameScene extends Phaser.Scene {
     if (this.player === undefined) {
       return
     }
+
+    this.inputManager?.update()
 
     if (this.goalState === 'idle') {
       this.updateActiveGameplay()
@@ -391,19 +373,12 @@ export class GameScene extends Phaser.Scene {
       return
     }
 
-    const jumpHeld =
-      this.zKey?.isDown === true || this.spaceKey?.isDown === true
-    const jumpPressed =
-      (this.zKey !== undefined && Phaser.Input.Keyboard.JustDown(this.zKey)) ||
-      (this.spaceKey !== undefined &&
-        Phaser.Input.Keyboard.JustDown(this.spaceKey))
-
     const controls: PlayerControls = {
-      left: this.cursors?.left.isDown === true || this.aKey?.isDown === true,
-      right: this.cursors?.right.isDown === true || this.dKey?.isDown === true,
-      run: this.shiftKey?.isDown === true,
-      jumpPressed,
-      jumpHeld,
+      left: this.inputManager?.isDown('left') === true,
+      right: this.inputManager?.isDown('right') === true,
+      run: this.inputManager?.isDown('run') === true,
+      jumpPressed: this.inputManager?.justPressed('jump') === true,
+      jumpHeld: this.inputManager?.isDown('jump') === true,
     }
 
     this.player.updateMovement(controls)
@@ -419,8 +394,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (
-      this.xKey !== undefined &&
-      Phaser.Input.Keyboard.JustDown(this.xKey) &&
+      this.inputManager?.justPressed('fireball') &&
       this.player.getPowerState() === 'fire'
     ) {
       this.tryShootFireball()

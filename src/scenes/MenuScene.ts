@@ -4,6 +4,7 @@ import type { StorageLike, StorageService } from '@/storageService'
 import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
 import { getAudioManager } from '@/audioManager'
 import { GAME_TITLE } from '@/config'
+import { InputManager } from '@/input/InputManager'
 import { getFirstStageId, STAGE_IDS } from '@/stages'
 import { createStorageService, resolveBrowserStorage } from '@/storageService'
 
@@ -32,6 +33,8 @@ export class MenuScene extends Phaser.Scene {
   private statusText?: Phaser.GameObjects.Text
 
   private optionTexts: Phaser.GameObjects.Text[] = []
+
+  private inputManager?: InputManager
 
   public constructor() {
     super(SCENE_KEYS.menu)
@@ -105,19 +108,26 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
-    this.input.keyboard?.on('keydown-UP', () => {
-      this.moveSelection(-1)
-    })
-
-    this.input.keyboard?.on('keydown-DOWN', () => {
-      this.moveSelection(1)
-    })
-
-    this.input.keyboard?.on('keydown-ENTER', () => {
-      this.confirmSelection()
-    })
+    this.inputManager = new InputManager(this)
+    this.inputManager.update()
 
     this.refreshMenu()
+  }
+
+  public override update(): void {
+    this.inputManager?.update()
+
+    if (this.inputManager?.justPressed('up')) {
+      this.moveSelection(-1)
+    }
+
+    if (this.inputManager?.justPressed('down')) {
+      this.moveSelection(1)
+    }
+
+    if (this.inputManager?.justPressed('confirm')) {
+      this.confirmSelection()
+    }
   }
 
   private moveSelection(delta: number): void {
