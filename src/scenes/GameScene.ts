@@ -62,24 +62,15 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.worldLayer = worldLayer
+    worldLayer.setCollisionByExclusion([-1, 0])
 
     this.worldWidth = map.widthInPixels
     this.worldHeight = map.heightInPixels
 
     this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight)
 
-    const floor = this.add.rectangle(
-      this.worldWidth / 2,
-      this.worldHeight - 16,
-      this.worldWidth,
-      32,
-      0x000000,
-      0,
-    )
-    this.physics.add.existing(floor, true)
-
     this.player = new Player(this, 128, this.worldHeight - 48)
-    this.physics.add.collider(this.player, floor)
+    this.physics.add.collider(this.player, worldLayer)
 
     this.cameras.main.setZoom(CAMERA_ZOOM)
     this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight)
@@ -182,6 +173,14 @@ export class GameScene extends Phaser.Scene {
     )
     this.game.canvas.dataset.playerX = String(Math.round(this.player.x))
     this.game.canvas.dataset.playerY = String(Math.round(this.player.y))
+    this.game.canvas.dataset.playerGrounded = String(
+      playerBody.blocked.down || playerBody.touching.down,
+    )
+    this.game.canvas.dataset.playerBlockedUp = String(playerBody.blocked.up)
+    this.game.canvas.dataset.playerBlockedLeft = String(playerBody.blocked.left)
+    this.game.canvas.dataset.playerBlockedRight = String(
+      playerBody.blocked.right,
+    )
     this.game.canvas.dataset.playerVelocityX = String(
       Math.round(playerBody.velocity.x),
     )
