@@ -68,6 +68,13 @@ export const GAME_CONFIG = {
       'VITE_GRAVITY_Y',
     ),
   },
+  stage: {
+    timeLimitSeconds: readNumberEnv(
+      import.meta.env.VITE_STAGE_TIME_LIMIT_SECONDS,
+      300,
+      'VITE_STAGE_TIME_LIMIT_SECONDS',
+    ),
+  },
   player: {
     walkSpeed: readNumberEnv(
       import.meta.env.VITE_PLAYER_WALK_SPEED,

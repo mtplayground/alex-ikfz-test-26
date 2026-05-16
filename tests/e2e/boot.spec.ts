@@ -81,6 +81,70 @@ test('game scene keeps the camera inside world bounds while the player moves', a
   expect(cameraScrollX).toBeLessThanOrEqual(mapWidth)
 })
 
+test('game scene HUD reflects score, coins, world, lives, and the ticking timer', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+  await expect(canvas).toHaveAttribute('data-hud-stage', '1-1')
+  await expect(canvas).toHaveAttribute('data-hud-score', '000000')
+  await expect(canvas).toHaveAttribute('data-hud-coins', '00')
+  await expect(canvas).toHaveAttribute('data-hud-lives', '03')
+
+  const initialHudTime = Number(
+    (await canvas.getAttribute('data-hud-time')) ?? '0',
+  )
+
+  await page.evaluate(() => {
+    const game = (
+      window as typeof window & {
+        __zeroclawGame?: {
+          scene: {
+            getScene(key: string): Record<string, unknown>
+          }
+        }
+      }
+    ).__zeroclawGame
+
+    const scene = game?.scene.getScene('game-scene')
+    const collectibles = scene?.collectibles as
+      | { getChildren: () => Array<Record<string, unknown>> }
+      | undefined
+    const collectible = collectibles?.getChildren()?.[0] as
+      | Record<string, unknown>
+      | undefined
+    const handlePlayerCollectibleCollision =
+      scene?.handlePlayerCollectibleCollision as
+        | ((collectible: Record<string, unknown>) => void)
+        | undefined
+
+    if (
+      collectible === undefined ||
+      handlePlayerCollectibleCollision === undefined
+    ) {
+      throw new Error('Missing game-scene debug handles for HUD test.')
+    }
+
+    handlePlayerCollectibleCollision.call(scene, collectible)
+  })
+
+  await expect(canvas).toHaveAttribute('data-hud-score', '000200')
+  await expect(canvas).toHaveAttribute('data-hud-coins', '01')
+
+  await page.waitForFunction((previousHudTime) => {
+    const canvasElement = document.querySelector('canvas')
+    const currentHudTime = Number(canvasElement?.dataset.hudTime ?? '0')
+
+    return currentHudTime < previousHudTime
+  }, initialHudTime)
+})
+
 test('reaching the goal flagpole advances to the next configured stage', async ({
   page,
 }) => {
@@ -135,9 +199,7 @@ test('reaching the goal flagpole advances to the next configured stage', async (
   await expect(canvas).toHaveAttribute('data-stage-id', '1-2')
 })
 
-test('goomba stomp removes the enemy', async ({
-  page,
-}) => {
+test('goomba stomp removes the enemy', async ({ page }) => {
   await page.goto('/')
 
   const canvas = page.locator('canvas')
@@ -256,7 +318,9 @@ test('goomba side contact damages the player', async ({ page }) => {
       goomba === undefined ||
       handlePlayerGoombaCollision === undefined
     ) {
-      throw new Error('Missing game-scene debug handles for goomba side-hit test.')
+      throw new Error(
+        'Missing game-scene debug handles for goomba side-hit test.',
+      )
     }
 
     player.forcePowerState('big')
@@ -323,12 +387,17 @@ test('koopa stomp creates a shell, kicking it defeats a goomba', async ({
     const koopa = koopas?.getChildren()?.[0] as
       | { x: number; y: number; body?: { top: number } }
       | undefined
-    const goomba = goombas?.getChildren()?.[0] as Record<string, unknown> | undefined
+    const goomba = goombas?.getChildren()?.[0] as
+      | Record<string, unknown>
+      | undefined
     const handlePlayerKoopaCollision = scene?.handlePlayerKoopaCollision as
       | ((koopa: Record<string, unknown>) => void)
       | undefined
     const handleKoopaGoombaCollision = scene?.handleKoopaGoombaCollision as
-      | ((koopa: Record<string, unknown>, goomba: Record<string, unknown>) => void)
+      | ((
+          koopa: Record<string, unknown>,
+          goomba: Record<string, unknown>,
+        ) => void)
       | undefined
 
     if (
@@ -474,7 +543,10 @@ test('collectibles apply score, power, and invulnerability effects', async ({
         | ((collectible: Record<string, unknown>) => void)
         | undefined
 
-    if (collectibles === undefined || handlePlayerCollectibleCollision === undefined) {
+    if (
+      collectibles === undefined ||
+      handlePlayerCollectibleCollision === undefined
+    ) {
       throw new Error('Missing game-scene debug handles for collectible test.')
     }
 
@@ -534,9 +606,13 @@ test('fire mario shoots fireballs that defeat enemies', async ({ page }) => {
     const goombas = scene?.goombas as
       | { getChildren: () => Array<Record<string, unknown>> }
       | undefined
-    const handleFireballGoombaCollision = scene?.handleFireballGoombaCollision as
-      | ((fireball: Record<string, unknown>, goomba: Record<string, unknown>) => void)
-      | undefined
+    const handleFireballGoombaCollision =
+      scene?.handleFireballGoombaCollision as
+        | ((
+            fireball: Record<string, unknown>,
+            goomba: Record<string, unknown>,
+          ) => void)
+        | undefined
 
     if (
       player === undefined ||

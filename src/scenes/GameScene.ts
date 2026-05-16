@@ -8,7 +8,7 @@ import {
   COLLECTIBLE_KIND,
   resolveCollectiblePickup,
 } from '@/collectibles'
-import { GAME_CONFIG, GAME_TITLE } from '@/config'
+import { GAME_CONFIG } from '@/config'
 import { Fireball } from '@/entities/Fireball'
 import { Goomba } from '@/enemies/Goomba'
 import { Koopa } from '@/enemies/Koopa'
@@ -21,6 +21,7 @@ import { MAX_ACTIVE_FIREBALLS, resolveFireballDirection } from '@/fireball'
 import { resolveFlagpoleBonus, resolveNextStage } from '@/goal'
 import { getScoreManager, type ScoreManager } from '@/scoreManager'
 import { createStorageService, type StorageService } from '@/storageService'
+import { GameHud } from '@/ui/GameHud'
 
 const CAMERA_ZOOM = 1.25
 const GOAL_POLE_HEIGHT = 160
@@ -34,6 +35,7 @@ interface GameSceneData {
 }
 
 type GoalState = 'idle' | 'sliding' | 'complete'
+const STAGE_TIME_EVENT = 'stage-time-changed'
 
 export class GameScene extends Phaser.Scene {
   private audioManager?: AudioManager
@@ -69,6 +71,12 @@ export class GameScene extends Phaser.Scene {
   private collectibles?: Phaser.Physics.Arcade.Group
 
   private fireballs?: Phaser.Physics.Arcade.Group
+
+  private hud?: GameHud
+
+  private stageTimerEvent?: Phaser.Time.TimerEvent
+
+  private stageTimeRemainingSeconds = GAME_CONFIG.stage.timeLimitSeconds
 
   private worldWidth = 0
 
@@ -123,6 +131,7 @@ export class GameScene extends Phaser.Scene {
     this.lastEnemyInteraction = 'none'
     this.lastCollectibleEffect = 'none'
     this.lastProjectileEvent = 'none'
+    this.stageTimeRemainingSeconds = GAME_CONFIG.stage.timeLimitSeconds
   }
 
   public create(): void {
@@ -185,6 +194,8 @@ export class GameScene extends Phaser.Scene {
     this.createKoopas()
     this.createCollectibles()
     this.createFireballs()
+    this.createHud()
+    this.createStageTimer()
 
     this.createGoalPole()
 
@@ -314,15 +325,13 @@ export class GameScene extends Phaser.Scene {
     this.dKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D)
     this.xKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.X)
 
-    this.add
-      .text(20, 16, `${GAME_TITLE} • World ${this.currentStageId}`, {
-        color: '#0f172a',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '18px',
-      })
-      .setScrollFactor(0)
-
     this.syncCanvasState(map)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.stageTimerEvent?.remove(false)
+      this.stageTimerEvent = undefined
+      this.hud?.destroy()
+      this.hud = undefined
+    })
   }
 
   public override update(): void {
@@ -403,6 +412,40 @@ export class GameScene extends Phaser.Scene {
 
     playerBody.setVelocity(0, 0)
     this.player.setX(this.goalPoleX)
+  }
+
+  private createHud(): void {
+    if (this.scoreManager === undefined) {
+      return
+    }
+
+    this.hud = new GameHud(this, {
+      stageId: this.currentStageId,
+      initialTimeRemainingSeconds: this.stageTimeRemainingSeconds,
+      scoreManager: this.scoreManager,
+    })
+
+    this.events.on(STAGE_TIME_EVENT, this.handleStageTimeChanged, this)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(STAGE_TIME_EVENT, this.handleStageTimeChanged, this)
+    })
+  }
+
+  private createStageTimer(): void {
+    this.events.emit(STAGE_TIME_EVENT, this.stageTimeRemainingSeconds)
+
+    this.stageTimerEvent = this.time.addEvent({
+      delay: 1000,
+      loop: true,
+      callback: () => {
+        if (this.goalState !== 'idle' || this.stageTimeRemainingSeconds <= 0) {
+          return
+        }
+
+        this.stageTimeRemainingSeconds -= 1
+        this.events.emit(STAGE_TIME_EVENT, this.stageTimeRemainingSeconds)
+      },
+    })
   }
 
   private createGoombas(): void {
@@ -543,6 +586,11 @@ export class GameScene extends Phaser.Scene {
         })
       },
     })
+  }
+
+  private handleStageTimeChanged(timeRemainingSeconds: number): void {
+    this.hud?.setTimeRemaining(timeRemainingSeconds)
+    this.hud?.setStageId(this.currentStageId)
   }
 
   private handlePlayerTileCollision(tile: Phaser.Tilemaps.Tile): void {
@@ -911,6 +959,19 @@ export class GameScene extends Phaser.Scene {
     this.game.canvas.dataset.playerPowerState = this.player.getPowerState()
     this.game.canvas.dataset.stageId = this.currentStageId
     this.game.canvas.dataset.nextStageId = nextStageId ?? ''
+    this.game.canvas.dataset.hudStage = this.currentStageId
+    this.game.canvas.dataset.hudScore = String(
+      this.scoreManager?.getScore() ?? 0,
+    ).padStart(6, '0')
+    this.game.canvas.dataset.hudCoins = String(
+      this.scoreManager?.getCoins() ?? 0,
+    ).padStart(2, '0')
+    this.game.canvas.dataset.hudLives = String(
+      this.scoreManager?.getLives() ?? 0,
+    ).padStart(2, '0')
+    this.game.canvas.dataset.hudTime = String(
+      this.stageTimeRemainingSeconds,
+    ).padStart(3, '0')
     this.game.canvas.dataset.goalState = this.goalState
     this.game.canvas.dataset.goalBonus = String(this.lastGoalBonus)
     this.game.canvas.dataset.goombaCount = String(
