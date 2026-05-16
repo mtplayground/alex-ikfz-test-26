@@ -1,6 +1,7 @@
 export const SCENE_KEYS = {
   boot: 'boot-scene',
   menu: 'menu-scene',
+  playerPreview: 'player-preview-scene',
 } as const
 
 export const ASSET_KEYS = {
@@ -99,4 +100,5 @@ export const CODE_REFERENCED_ASSET_KEYS = {
     ASSET_KEYS.audio.powerup,
     ASSET_KEYS.audio.stomp,
   ],
+  playerPreviewScene: [ASSET_KEYS.atlases.player, ASSET_KEYS.audio.jump],
 } as const
