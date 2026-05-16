@@ -98,6 +98,7 @@ describe('audioManager', () => {
       ASSET_KEYS.audio.coin,
       ASSET_KEYS.audio.jump,
       ASSET_KEYS.audio.powerup,
+      ASSET_KEYS.audio.stageClear,
       ASSET_KEYS.audio.stomp,
     ])
   })

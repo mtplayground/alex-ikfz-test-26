@@ -3,16 +3,33 @@ import Phaser from 'phaser'
 import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
 import { getAudioManager, type AudioManager } from '@/audioManager'
 import { resolveBlockHit } from '@/blocks'
-import { GAME_TITLE } from '@/config'
+import { GAME_CONFIG, GAME_TITLE } from '@/config'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
+import { resolveFlagpoleBonus, resolveNextStage } from '@/goal'
 import { getScoreManager, type ScoreManager } from '@/scoreManager'
-import { createStorageService } from '@/storageService'
+import {
+  createStorageService,
+  type StorageService,
+} from '@/storageService'
 
 const CAMERA_ZOOM = 1.25
+const GOAL_POLE_HEIGHT = 160
+const GOAL_POLE_OFFSET_X = 48
+const GOAL_POLE_ZONE_WIDTH = 18
+const GOAL_SLIDE_DURATION_MS = 900
+
+interface GameSceneData {
+  stageId?: string | null
+  resetRun?: boolean
+}
+
+type GoalState = 'idle' | 'sliding' | 'complete'
 
 export class GameScene extends Phaser.Scene {
   private audioManager?: AudioManager
+
+  private storageService?: StorageService
 
   private scoreManager?: ScoreManager
 
@@ -32,16 +49,52 @@ export class GameScene extends Phaser.Scene {
 
   private worldLayer?: Phaser.Tilemaps.TilemapLayer
 
+  private goalZone?: Phaser.GameObjects.Zone
+
   private worldWidth = 0
 
   private worldHeight = 0
+
+  private currentStageId = GAME_CONFIG.levels[0] ?? '1-1'
+
+  private resetRun = false
+
+  private goalState: GoalState = 'idle'
+
+  private goalPoleX = 0
+
+  private goalPoleTopY = 0
+
+  private goalPoleBottomY = 0
 
   private lastHeadHitKey?: string
 
   private lastBlockAction = 'none'
 
+  private lastGoalBonus = 0
+
   public constructor() {
     super(SCENE_KEYS.game)
+  }
+
+  public init(data: GameSceneData = {}): void {
+    const requestedStageId = data.stageId?.trim()
+
+    if (
+      requestedStageId !== undefined &&
+      requestedStageId.length > 0 &&
+      GAME_CONFIG.levels.includes(requestedStageId)
+    ) {
+      this.currentStageId = requestedStageId
+    } else {
+      this.currentStageId = GAME_CONFIG.levels[0] ?? '1-1'
+    }
+
+    this.resetRun = data.resetRun === true
+    this.goalState = 'idle'
+    this.lastHeadHitKey = undefined
+    this.lastBlockAction = 'none'
+    this.lastGoalBonus = 0
   }
 
   public create(): void {
@@ -51,7 +104,13 @@ export class GameScene extends Phaser.Scene {
     this.audioManager.registerDefaultSfx()
     this.audioManager.bindUnlockOnFirstInteraction()
     this.audioManager.switchBgm(ASSET_KEYS.audio.overworldTheme)
-    this.scoreManager = getScoreManager(createStorageService(['1-1', '1-2']))
+
+    this.storageService = createStorageService(GAME_CONFIG.levels)
+    this.scoreManager = getScoreManager(this.storageService)
+
+    if (this.resetRun) {
+      this.scoreManager.resetRun()
+    }
 
     Player.ensureAnimations(this)
 
@@ -90,6 +149,20 @@ export class GameScene extends Phaser.Scene {
       this,
     )
 
+    this.createGoalPole()
+
+    if (this.goalZone !== undefined) {
+      this.physics.add.overlap(
+        this.player,
+        this.goalZone,
+        () => {
+          this.handleGoalReached()
+        },
+        undefined,
+        this,
+      )
+    }
+
     this.cameras.main.setZoom(CAMERA_ZOOM)
     this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight)
     this.syncCameraToPlayer()
@@ -106,7 +179,7 @@ export class GameScene extends Phaser.Scene {
     this.dKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D)
 
     this.add
-      .text(20, 16, `${GAME_TITLE} • World 1-1`, {
+      .text(20, 16, `${GAME_TITLE} • World ${this.currentStageId}`, {
         color: '#0f172a',
         fontFamily: 'Arial, sans-serif',
         fontSize: '18px',
@@ -117,6 +190,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   public override update(): void {
+    if (this.player === undefined) {
+      return
+    }
+
+    if (this.goalState === 'idle') {
+      this.updateActiveGameplay()
+    } else {
+      this.updateGoalSequence()
+    }
+
+    const map = this.worldLayer?.tilemap
+
+    if (map !== undefined) {
+      this.syncCanvasState(map)
+    }
+  }
+
+  private updateActiveGameplay(): void {
     if (this.player === undefined) {
       return
     }
@@ -147,16 +238,111 @@ export class GameScene extends Phaser.Scene {
     if (controls.jumpPressed) {
       this.audioManager?.playSfx(ASSET_KEYS.audio.jump)
     }
+  }
 
-    const map = this.worldLayer?.tilemap
-
-    if (map !== undefined) {
-      this.syncCanvasState(map)
+  private updateGoalSequence(): void {
+    if (this.player === undefined) {
+      return
     }
+
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body
+
+    playerBody.setVelocity(0, 0)
+    this.player.setX(this.goalPoleX)
+  }
+
+  private createGoalPole(): void {
+    const poleBaseY = this.worldHeight - 64
+    const poleTopY = poleBaseY - GOAL_POLE_HEIGHT
+    const poleX = this.worldWidth - GOAL_POLE_OFFSET_X
+
+    this.goalPoleX = poleX
+    this.goalPoleTopY = poleTopY
+    this.goalPoleBottomY = poleBaseY
+
+    this.add
+      .rectangle(poleX, poleBaseY - GOAL_POLE_HEIGHT / 2, 6, GOAL_POLE_HEIGHT, 0xe2e8f0)
+      .setOrigin(0.5)
+
+    this.add
+      .rectangle(poleX + 10, poleTopY + 18, 18, 12, 0x22c55e)
+      .setOrigin(0.5)
+
+    const goalZone = this.add.zone(
+      poleX,
+      poleBaseY - GOAL_POLE_HEIGHT / 2,
+      GOAL_POLE_ZONE_WIDTH,
+      GOAL_POLE_HEIGHT,
+    )
+
+    this.physics.add.existing(goalZone, true)
+    this.goalZone = goalZone
+  }
+
+  private handleGoalReached(): void {
+    if (
+      this.player === undefined ||
+      this.storageService === undefined ||
+      this.scoreManager === undefined ||
+      this.goalState !== 'idle'
+    ) {
+      return
+    }
+
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body
+    const normalizedContactHeight = Phaser.Math.Clamp(
+      (this.player.y - this.goalPoleTopY) /
+        Math.max(this.goalPoleBottomY - this.goalPoleTopY, 1),
+      0,
+      1,
+    )
+    const nextStageId = resolveNextStage(GAME_CONFIG.levels, this.currentStageId)
+
+    this.goalState = 'sliding'
+    this.lastBlockAction = 'goal'
+    this.lastGoalBonus = resolveFlagpoleBonus(normalizedContactHeight)
+
+    this.scoreManager.addScore(this.lastGoalBonus)
+    this.storageService.setFurthestStage(nextStageId ?? this.currentStageId)
+
+    this.audioManager?.stopBgm()
+    this.audioManager?.playSfx(ASSET_KEYS.audio.stageClear)
+
+    playerBody.setAllowGravity(false)
+    playerBody.setVelocity(0, 0)
+
+    this.tweens.add({
+      targets: this.player,
+      x: this.goalPoleX,
+      y: this.goalPoleBottomY + 4,
+      duration: GOAL_SLIDE_DURATION_MS,
+      ease: 'Linear',
+      onComplete: () => {
+        this.goalState = 'complete'
+        this.time.delayedCall(360, () => {
+          if (nextStageId === null) {
+            this.scene.start(SCENE_KEYS.gameOver, {
+              completedRun: true,
+              score: this.scoreManager?.getScore() ?? 0,
+            })
+            return
+          }
+
+          this.scene.start(SCENE_KEYS.game, {
+            stageId: nextStageId,
+            resetRun: false,
+          })
+        })
+      },
+    })
   }
 
   private handlePlayerTileCollision(tile: Phaser.Tilemaps.Tile): void {
-    if (this.player === undefined || this.worldLayer === undefined) {
+    if (
+      this.player === undefined ||
+      this.worldLayer === undefined ||
+      this.goalState !== 'idle'
+    ) {
       return
     }
 
@@ -303,6 +489,7 @@ export class GameScene extends Phaser.Scene {
     this.syncCameraToPlayer()
 
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body
+    const nextStageId = resolveNextStage(GAME_CONFIG.levels, this.currentStageId)
 
     this.game.canvas.dataset.scene = SCENE_KEYS.game
     this.game.canvas.dataset.mapWidth = String(map.widthInPixels)
@@ -334,5 +521,9 @@ export class GameScene extends Phaser.Scene {
     this.game.canvas.dataset.coins = String(this.scoreManager?.getCoins() ?? 0)
     this.game.canvas.dataset.lives = String(this.scoreManager?.getLives() ?? 0)
     this.game.canvas.dataset.playerPowerState = this.player.getPowerState()
+    this.game.canvas.dataset.stageId = this.currentStageId
+    this.game.canvas.dataset.nextStageId = nextStageId ?? ''
+    this.game.canvas.dataset.goalState = this.goalState
+    this.game.canvas.dataset.goalBonus = String(this.lastGoalBonus)
   }
 }

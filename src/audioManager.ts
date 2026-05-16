@@ -54,6 +54,7 @@ const DEFAULT_BGM_LOOP_CONFIG = {
 } as const
 
 const DEFAULT_SFX_KEYS = [
+  ASSET_KEYS.audio.stageClear,
   ASSET_KEYS.audio.jump,
   ASSET_KEYS.audio.coin,
   ASSET_KEYS.audio.powerup,
