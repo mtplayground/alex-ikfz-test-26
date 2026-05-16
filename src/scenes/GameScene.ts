@@ -8,6 +8,7 @@ import {
   resolveCollectiblePickup,
 } from '@/collectibles'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
+import { Fireball } from '@/entities/Fireball'
 import { Goomba } from '@/enemies/Goomba'
 import { Koopa } from '@/enemies/Koopa'
 import { isGoombaStompCollision } from '@/enemies/goombaLogic'
@@ -15,6 +16,10 @@ import { resolveKoopaPlayerInteraction } from '@/enemies/koopaLogic'
 import { Collectible } from '@/entities/Collectible'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
+import {
+  MAX_ACTIVE_FIREBALLS,
+  resolveFireballDirection,
+} from '@/fireball'
 import { resolveFlagpoleBonus, resolveNextStage } from '@/goal'
 import { getScoreManager, type ScoreManager } from '@/scoreManager'
 import {
@@ -54,6 +59,8 @@ export class GameScene extends Phaser.Scene {
 
   private dKey?: Phaser.Input.Keyboard.Key
 
+  private xKey?: Phaser.Input.Keyboard.Key
+
   private player?: Player
 
   private worldLayer?: Phaser.Tilemaps.TilemapLayer
@@ -65,6 +72,8 @@ export class GameScene extends Phaser.Scene {
   private koopas?: Phaser.Physics.Arcade.Group
 
   private collectibles?: Phaser.Physics.Arcade.Group
+
+  private fireballs?: Phaser.Physics.Arcade.Group
 
   private worldWidth = 0
 
@@ -92,6 +101,8 @@ export class GameScene extends Phaser.Scene {
 
   private lastCollectibleEffect = 'none'
 
+  private lastProjectileEvent = 'none'
+
   public constructor() {
     super(SCENE_KEYS.game)
   }
@@ -116,6 +127,7 @@ export class GameScene extends Phaser.Scene {
     this.lastGoalBonus = 0
     this.lastEnemyInteraction = 'none'
     this.lastCollectibleEffect = 'none'
+    this.lastProjectileEvent = 'none'
   }
 
   public create(): void {
@@ -137,6 +149,7 @@ export class GameScene extends Phaser.Scene {
     Goomba.ensureAnimations(this)
     Koopa.ensureAnimations(this)
     Collectible.ensureAnimations(this)
+    Fireball.ensureTexture(this)
 
     const map = this.make.tilemap({ key: ASSET_KEYS.tilemaps.world11 })
     const tileset = map.addTilesetImage(
@@ -176,6 +189,7 @@ export class GameScene extends Phaser.Scene {
     this.createGoombas()
     this.createKoopas()
     this.createCollectibles()
+    this.createFireballs()
 
     this.createGoalPole()
 
@@ -204,6 +218,19 @@ export class GameScene extends Phaser.Scene {
       )
     }
 
+    if (this.fireballs !== undefined) {
+      this.physics.add.collider(
+        this.fireballs,
+        worldLayer,
+        (fireball) => {
+          ;(fireball as unknown as Fireball).destroy()
+          this.lastProjectileEvent = 'wall-hit'
+        },
+        undefined,
+        this,
+      )
+    }
+
     if (this.koopas !== undefined) {
       this.physics.add.collider(this.koopas, worldLayer)
       this.physics.add.collider(
@@ -225,6 +252,36 @@ export class GameScene extends Phaser.Scene {
           this.handleKoopaGoombaCollision(
             koopa as unknown as Koopa,
             goomba as unknown as Goomba,
+          )
+        },
+        undefined,
+        this,
+      )
+    }
+
+    if (this.fireballs !== undefined && this.goombas !== undefined) {
+      this.physics.add.overlap(
+        this.fireballs,
+        this.goombas,
+        (fireball, goomba) => {
+          this.handleFireballGoombaCollision(
+            fireball as unknown as Fireball,
+            goomba as unknown as Goomba,
+          )
+        },
+        undefined,
+        this,
+      )
+    }
+
+    if (this.fireballs !== undefined && this.koopas !== undefined) {
+      this.physics.add.overlap(
+        this.fireballs,
+        this.koopas,
+        (fireball, koopa) => {
+          this.handleFireballKoopaCollision(
+            fireball as unknown as Fireball,
+            koopa as unknown as Koopa,
           )
         },
         undefined,
@@ -260,6 +317,7 @@ export class GameScene extends Phaser.Scene {
     )
     this.aKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A)
     this.dKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D)
+    this.xKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.X)
 
     this.add
       .text(20, 16, `${GAME_TITLE} • World ${this.currentStageId}`, {
@@ -288,6 +346,9 @@ export class GameScene extends Phaser.Scene {
     })
     this.koopas?.getChildren().forEach((enemy) => {
       ;(enemy as unknown as Koopa).updateMovement()
+    })
+    this.fireballs?.getChildren().forEach((projectile) => {
+      ;(projectile as unknown as Fireball).updateMotion(this.time.now)
     })
 
     const map = this.worldLayer?.tilemap
@@ -327,6 +388,14 @@ export class GameScene extends Phaser.Scene {
 
     if (controls.jumpPressed) {
       this.audioManager?.playSfx(ASSET_KEYS.audio.jump)
+    }
+
+    if (
+      this.xKey !== undefined &&
+      Phaser.Input.Keyboard.JustDown(this.xKey) &&
+      this.player.getPowerState() === 'fire'
+    ) {
+      this.tryShootFireball()
     }
   }
 
@@ -404,6 +473,13 @@ export class GameScene extends Phaser.Scene {
 
     collectibleSpecs.forEach(({ x, y, kind }) => {
       this.collectibles?.add(new Collectible(this, x, y, kind))
+    })
+  }
+
+  private createFireballs(): void {
+    this.fireballs = this.physics.add.group({
+      allowGravity: true,
+      immovable: false,
     })
   }
 
@@ -625,6 +701,58 @@ export class GameScene extends Phaser.Scene {
     goomba.squash()
   }
 
+  private tryShootFireball(): void {
+    if (this.player === undefined || this.fireballs === undefined) {
+      return
+    }
+
+    if (this.fireballs.countActive(true) >= MAX_ACTIVE_FIREBALLS) {
+      return
+    }
+
+    const direction = resolveFireballDirection(this.player.getFacing())
+    const fireball = new Fireball(
+      this,
+      this.player.x + direction * 12,
+      this.player.y - 14,
+      direction,
+    )
+
+    this.fireballs.add(fireball)
+    this.lastProjectileEvent = 'fired'
+    this.audioManager?.playSfx(ASSET_KEYS.audio.powerup)
+  }
+
+  private handleFireballGoombaCollision(
+    fireball: Fireball,
+    goomba: Goomba,
+  ): void {
+    if (goomba.isDefeated()) {
+      return
+    }
+
+    this.lastProjectileEvent = 'enemy-hit'
+    this.scoreManager?.addScore(100)
+    this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
+    goomba.squash()
+    fireball.destroy()
+  }
+
+  private handleFireballKoopaCollision(
+    fireball: Fireball,
+    koopa: Koopa,
+  ): void {
+    if (koopa.isDefeated()) {
+      return
+    }
+
+    this.lastProjectileEvent = 'enemy-hit'
+    this.scoreManager?.addScore(200)
+    this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
+    koopa.defeat()
+    fireball.destroy()
+  }
+
   private handlePlayerCollectibleCollision(collectible: Collectible): void {
     if (
       this.player === undefined ||
@@ -795,5 +923,9 @@ export class GameScene extends Phaser.Scene {
       this.player.isInvulnerable(),
     )
     this.game.canvas.dataset.lastEnemyInteraction = this.lastEnemyInteraction
+    this.game.canvas.dataset.fireballCount = String(
+      this.fireballs?.countActive(true) ?? 0,
+    )
+    this.game.canvas.dataset.lastProjectileEvent = this.lastProjectileEvent
   }
 }
