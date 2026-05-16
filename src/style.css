@@ -22,6 +22,16 @@ body {
   overflow: hidden;
 }
 
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(56 189 248 / 8%), transparent 32%),
+    radial-gradient(circle at 50% 12%, rgb(148 163 184 / 12%), transparent 42%);
+  pointer-events: none;
+}
+
 #app {
   position: relative;
   width: 100vw;
@@ -29,10 +39,20 @@ body {
   overflow: hidden;
 }
 
+#app::after {
+  content: '';
+  position: absolute;
+  inset: 24px;
+  border: 1px solid rgb(148 163 184 / 10%);
+  border-radius: 28px;
+  pointer-events: none;
+}
+
 canvas {
   display: block;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   border: 1px solid #334155;
+  border-radius: 12px;
   box-shadow: 0 24px 60px rgb(0 0 0 / 35%);
 }

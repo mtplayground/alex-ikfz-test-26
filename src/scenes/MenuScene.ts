@@ -47,6 +47,9 @@ export class MenuScene extends Phaser.Scene {
     this.storageService = createStorageService(STAGE_IDS, this.storage)
 
     this.cameras.main.setBackgroundColor('#0f172a')
+    this.add
+      .rectangle(width / 2, height / 2, width, height, 0x0f172a)
+      .setDepth(-10)
 
     const audioManager = getAudioManager(this)
     audioManager.registerDefaultSfx()
@@ -246,6 +249,7 @@ export class MenuScene extends Phaser.Scene {
     const furthestStage = this.storageService.getFurthestStage()
     const highScore = this.storageService.getHighScore()
 
+    this.game.canvas.dataset.scene = SCENE_KEYS.menu
     this.game.canvas.dataset.menuSelection =
       this.menuOptions[this.selectedIndex]?.action ?? 'unknown'
     this.game.canvas.dataset.menuHasSave = String(furthestStage !== null)
