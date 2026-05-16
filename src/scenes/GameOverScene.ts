@@ -6,12 +6,15 @@ import { GAME_TITLE } from '@/config'
 interface GameOverSceneData {
   completedRun?: boolean
   score?: number
+  reason?: 'defeat' | 'timeout'
 }
 
 export class GameOverScene extends Phaser.Scene {
   private completedRun = false
 
   private finalScore = 0
+
+  private reason: 'defeat' | 'timeout' = 'defeat'
 
   public constructor() {
     super(SCENE_KEYS.gameOver)
@@ -20,6 +23,7 @@ export class GameOverScene extends Phaser.Scene {
   public init(data: GameOverSceneData = {}): void {
     this.completedRun = data.completedRun === true
     this.finalScore = data.score ?? 0
+    this.reason = data.reason ?? 'defeat'
   }
 
   public create(): void {
@@ -27,7 +31,9 @@ export class GameOverScene extends Phaser.Scene {
     const headline = this.completedRun ? 'All Clear' : 'Game Over'
     const subhead = this.completedRun
       ? 'Every configured stage is complete.'
-      : 'The run has ended.'
+      : this.reason === 'timeout'
+        ? 'Time ran out.'
+        : 'The run has ended.'
 
     this.cameras.main.setBackgroundColor('#111827')
 
@@ -78,5 +84,6 @@ export class GameOverScene extends Phaser.Scene {
     this.game.canvas.dataset.scene = SCENE_KEYS.gameOver
     this.game.canvas.dataset.gameOverCompletedRun = String(this.completedRun)
     this.game.canvas.dataset.gameOverScore = String(this.finalScore)
+    this.game.canvas.dataset.gameOverReason = this.reason
   }
 }

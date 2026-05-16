@@ -172,6 +172,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return result
   }
 
+  public defeat(): void {
+    if (this.isDead()) {
+      return
+    }
+
+    this.powerState = 'dead'
+    this.handleDefeat()
+  }
+
   public grantStarInvulnerability(
     durationMs: number = GAME_CONFIG.player.starInvulnerabilityDurationMs,
   ): void {
