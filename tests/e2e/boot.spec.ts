@@ -497,3 +497,82 @@ test('collectibles apply score, power, and invulnerability effects', async ({
   await expect(canvas).toHaveAttribute('data-score', '3200')
   await expect(canvas).toHaveAttribute('data-coins', '1')
 })
+
+test('fire mario shoots fireballs that defeat enemies', async ({ page }) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+  await expect(canvas).toHaveAttribute('data-fireball-count', '0')
+
+  await page.evaluate(() => {
+    const game = (
+      window as typeof window & {
+        __zeroclawGame?: {
+          scene: {
+            getScene(key: string): Record<string, unknown>
+          }
+        }
+      }
+    ).__zeroclawGame
+
+    const scene = game?.scene.getScene('game-scene')
+    const player = scene?.player as
+      | {
+          forcePowerState: (state: 'small' | 'big' | 'fire') => void
+          setPosition: (x: number, y: number) => void
+        }
+      | undefined
+    const tryShootFireball = scene?.tryShootFireball as (() => void) | undefined
+    const fireballs = scene?.fireballs as
+      | { getChildren: () => Array<Record<string, unknown>> }
+      | undefined
+    const goombas = scene?.goombas as
+      | { getChildren: () => Array<Record<string, unknown>> }
+      | undefined
+    const handleFireballGoombaCollision = scene?.handleFireballGoombaCollision as
+      | ((fireball: Record<string, unknown>, goomba: Record<string, unknown>) => void)
+      | undefined
+
+    if (
+      player === undefined ||
+      tryShootFireball === undefined ||
+      fireballs === undefined ||
+      goombas === undefined ||
+      handleFireballGoombaCollision === undefined
+    ) {
+      throw new Error('Missing game-scene debug handles for fireball test.')
+    }
+
+    player.forcePowerState('small')
+    tryShootFireball.call(scene)
+
+    player.forcePowerState('fire')
+    player.setPosition(500, 360)
+    tryShootFireball.call(scene)
+
+    const fireball = fireballs.getChildren()[0]
+    const goomba = goombas.getChildren()[0]
+
+    if (fireball === undefined || goomba === undefined) {
+      throw new Error('Expected active fireball and goomba for collision test.')
+    }
+
+    handleFireballGoombaCollision.call(scene, fireball, goomba)
+  })
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return (
+      canvasElement?.dataset.lastProjectileEvent === 'enemy-hit' &&
+      canvasElement?.dataset.goombaCount === '0'
+    )
+  })
+
+  await expect(canvas).toHaveAttribute('data-score', '100')
+})
