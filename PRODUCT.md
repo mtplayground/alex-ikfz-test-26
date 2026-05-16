@@ -21,6 +21,7 @@ ZeroClaw is a browser-based 2D platformer built with Phaser 3, TypeScript, Vite,
 
 ## Architecture
 - Phaser scenes are the top-level flow: boot, menu, game, game-over, and player preview.
+- The runtime uses Phaser's `CANVAS` renderer for deterministic browser compatibility and verification.
 - Game rules are split into focused modules for player motion/state, enemies, collectibles, blocks, goal logic, score, audio, storage, and input.
 - Stage progression is data-driven through a stage registry rather than per-level scene duplication.
 - Assets are served from `public/assets`, and production output is a static `dist/` build.
@@ -30,3 +31,4 @@ ZeroClaw is a browser-based 2D platformer built with Phaser 3, TypeScript, Vite,
 - Unit tests run with Vitest; browser flows are covered with Playwright e2e tests.
 - Save data is part of the product contract: high score and furthest unlocked stage should survive reloads.
 - The game uses integer-multiple canvas scaling with letterboxing to preserve crisp pixel rendering.
+- The menu is keyboard-first: `Enter` starts or confirms actions, and `Up`/`Down` always drive menu selection.
