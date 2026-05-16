@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createStorageService,
   LEGACY_MENU_STORAGE_KEY,
+  resolveBrowserStorage,
   STORAGE_KEY,
   type StorageLike,
 } from '@/storageService'
@@ -24,6 +25,10 @@ class MemoryStorage implements StorageLike {
 }
 
 describe('storageService', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('returns defaults when storage is empty', () => {
     const service = createStorageService(['1-1', '1-2'], new MemoryStorage())
 
@@ -94,5 +99,37 @@ describe('storageService', () => {
     expect(service.getFurthestStage()).toBeNull()
     expect(storage.getItem(STORAGE_KEY)).toBeNull()
     expect(storage.getItem(LEGACY_MENU_STORAGE_KEY)).toBeNull()
+  })
+
+  it('reads and writes through mocked localStorage when window is available', () => {
+    const localStorage = new MemoryStorage()
+
+    vi.stubGlobal('window', { localStorage })
+
+    const service = createStorageService(['1-1', '1-2'])
+
+    service.setHighScore(7777)
+    service.setFurthestStage('1-2')
+
+    expect(resolveBrowserStorage()).toBe(localStorage)
+    expect(service.getHighScore()).toBe(7777)
+    expect(service.getFurthestStage()).toBe('1-2')
+  })
+
+  it('gracefully falls back when localStorage access throws', () => {
+    const throwingWindow = {
+      get localStorage(): never {
+        throw new Error('localStorage blocked')
+      },
+    }
+
+    vi.stubGlobal('window', throwingWindow)
+
+    expect(resolveBrowserStorage()).toBeUndefined()
+
+    const service = createStorageService(['1-1', '1-2'])
+
+    expect(service.getHighScore()).toBe(0)
+    expect(service.getFurthestStage()).toBeNull()
   })
 })

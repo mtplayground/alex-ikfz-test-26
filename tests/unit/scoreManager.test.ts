@@ -39,6 +39,14 @@ describe('scoreManager', () => {
     resetScoreManagerSingleton()
   })
 
+  it('accumulates score across multiple additions', () => {
+    const { manager } = createManager()
+
+    expect(manager.addScore(100)).toBe(100)
+    expect(manager.addScore(250)).toBe(350)
+    expect(manager.getScore()).toBe(350)
+  })
+
   it('tracks score, coins, lives, and high score state', () => {
     const { manager } = createManager()
 
@@ -60,6 +68,22 @@ describe('scoreManager', () => {
 
     expect(manager.getCoins()).toBe(50)
     expect(manager.getLives()).toBe(5)
+  })
+
+  it('triggers exactly one 1-up at 100 coins and carries over remaining coins', () => {
+    const { manager } = createManager()
+
+    manager.addCoins(99)
+    expect(manager.getCoins()).toBe(99)
+    expect(manager.getLives()).toBe(3)
+
+    manager.addCoins(1)
+    expect(manager.getCoins()).toBe(0)
+    expect(manager.getLives()).toBe(4)
+
+    manager.addCoins(25)
+    expect(manager.getCoins()).toBe(25)
+    expect(manager.getLives()).toBe(4)
   })
 
   it('writes back the highest score when a new record is reached', () => {
