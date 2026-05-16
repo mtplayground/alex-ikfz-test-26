@@ -52,6 +52,18 @@ describe('player vertical motion', () => {
     expect(motion.velocityY).toBeLessThan(0)
   })
 
+  it('preserves stronger upward velocity while jump is still held', () => {
+    const motion = resolveVerticalMotion(
+      controlsFrom({ jumpHeld: true }),
+      -320,
+      false,
+    )
+
+    expect(motion.justJumped).toBe(false)
+    expect(motion.jumpState).toBe('rising')
+    expect(motion.velocityY).toBe(-320)
+  })
+
   it('cuts jump height when the jump key is released early', () => {
     const motion = resolveVerticalMotion(
       controlsFrom({ jumpHeld: false }),
@@ -62,6 +74,21 @@ describe('player vertical motion', () => {
     expect(motion.justJumped).toBe(false)
     expect(motion.jumpState).toBe('rising')
     expect(motion.velocityY).toBe(-190)
+  })
+
+  it('produces a lower jump on early release than on a held jump', () => {
+    const heldJump = resolveVerticalMotion(
+      controlsFrom({ jumpHeld: true }),
+      -320,
+      false,
+    )
+    const releasedJump = resolveVerticalMotion(
+      controlsFrom({ jumpHeld: false }),
+      -320,
+      false,
+    )
+
+    expect(heldJump.velocityY).toBeLessThan(releasedJump.velocityY)
   })
 
   it('reports grounded once the player has landed', () => {
