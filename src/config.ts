@@ -81,6 +81,11 @@ export const GAME_CONFIG = {
     ),
     jumpVelocity: -460,
     jumpReleaseVelocityCap: -190,
+    smallScale: 1.5,
+    poweredScale: 1.72,
+    transformDurationMs: 420,
+    invulnerabilityDurationMs: 1200,
+    invulnerabilityBlinkIntervalMs: 90,
   },
   levels: readLevels(import.meta.env.VITE_LEVELS),
 } as const

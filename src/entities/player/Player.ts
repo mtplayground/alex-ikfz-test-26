@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 
 import { ASSET_KEYS } from '@/assets'
+import { GAME_CONFIG } from '@/config'
 import {
   resolveHorizontalMotion,
   resolveVerticalMotion,
@@ -9,6 +10,13 @@ import {
   type PlayerFacing,
   type PlayerJumpState,
 } from '@/entities/player/playerMotion'
+import {
+  resolveDamageState,
+  resolvePowerStateUpgrade,
+  type PlayerDamageResult,
+  type PlayerLifeState,
+  type PlayerPowerState,
+} from '@/entities/player/playerState'
 
 const PLAYER_ANIMATION_KEYS = {
   idle: 'player-idle',
@@ -17,9 +25,15 @@ const PLAYER_ANIMATION_KEYS = {
 } as const
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
+  private powerState: PlayerLifeState = 'small'
+
   private facing: PlayerFacing = 'right'
 
   private jumpState: PlayerJumpState = 'grounded'
+
+  private invulnerableUntil = 0
+
+  private transformTween?: Phaser.Tweens.Tween
 
   public constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, ASSET_KEYS.atlases.player, 'player-idle-0')
@@ -30,10 +44,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5, 1)
     this.setScale(1.5)
     this.setCollideWorldBounds(true)
-
-    const body = this.body as Phaser.Physics.Arcade.Body
-    body.setSize(18, 28)
-    body.setOffset(7, 4)
+    this.applyPowerStateVisuals()
   }
 
   public static ensureAnimations(scene: Phaser.Scene): void {
@@ -76,7 +87,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   public updateMovement(controls: PlayerControls): void {
     const body = this.body as Phaser.Physics.Arcade.Body
+    const now = this.scene.time.now
     const grounded = body.blocked.down || body.touching.down
+
+    this.syncInvulnerabilityVisual(now)
+
+    if (this.isDead()) {
+      body.setVelocityX(0)
+      this.jumpState = grounded ? 'grounded' : 'falling'
+      this.play(PLAYER_ANIMATION_KEYS.idle, true)
+      return
+    }
 
     const horizontalMotion = resolveHorizontalMotion(controls, this.facing)
     const verticalMotion = resolveVerticalMotion(
@@ -98,6 +119,69 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.play(PLAYER_ANIMATION_KEYS.idle, true)
     }
+  }
+
+  public applyPowerState(targetState: PlayerPowerState): PlayerLifeState {
+    const nextState = resolvePowerStateUpgrade(this.powerState, targetState)
+
+    if (nextState === this.powerState) {
+      return this.powerState
+    }
+
+    this.powerState = nextState
+    this.playTransformationAnimation()
+    this.applyPowerStateVisuals()
+
+    return this.powerState
+  }
+
+  public forcePowerState(targetState: PlayerPowerState): PlayerLifeState {
+    this.powerState = targetState
+    this.invulnerableUntil = 0
+    this.playTransformationAnimation()
+    this.applyPowerStateVisuals()
+
+    return this.powerState
+  }
+
+  public applyDamage(): PlayerDamageResult {
+    const result = resolveDamageState(
+      this.powerState,
+      this.isInvulnerable(this.scene.time.now),
+    )
+
+    if (!result.accepted) {
+      return result
+    }
+
+    this.powerState = result.nextState
+
+    if (result.defeated) {
+      this.handleDefeat()
+      return result
+    }
+
+    if (result.grantsInvulnerability) {
+      this.invulnerableUntil =
+        this.scene.time.now + GAME_CONFIG.player.invulnerabilityDurationMs
+    }
+
+    this.playTransformationAnimation()
+    this.applyPowerStateVisuals()
+
+    return result
+  }
+
+  public getPowerState(): PlayerLifeState {
+    return this.powerState
+  }
+
+  public isDead(): boolean {
+    return this.powerState === 'dead'
+  }
+
+  public isInvulnerable(now = this.scene.time.now): boolean {
+    return !this.isDead() && now < this.invulnerableUntil
   }
 
   public getFacing(): PlayerFacing {
@@ -123,5 +207,80 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   public isGrounded(): boolean {
     return this.jumpState === 'grounded'
+  }
+
+  private handleDefeat(): void {
+    const body = this.body as Phaser.Physics.Arcade.Body
+
+    this.invulnerableUntil = 0
+    this.transformTween?.stop()
+    this.setAlpha(0.55)
+    this.setTint(0x94a3b8)
+    this.setScale(GAME_CONFIG.player.smallScale)
+    body.setAllowGravity(false)
+    body.setVelocity(0, 0)
+    body.setSize(18, 28)
+    body.setOffset(7, 4)
+  }
+
+  private applyPowerStateVisuals(): void {
+    const body = this.body as Phaser.Physics.Arcade.Body
+    const isPowered = this.powerState === 'big' || this.powerState === 'fire'
+
+    body.setAllowGravity(true)
+    this.setAlpha(1)
+
+    if (this.powerState === 'fire') {
+      this.setTint(0xf97316)
+    } else if (this.powerState === 'big') {
+      this.setTint(0x84cc16)
+    } else {
+      this.clearTint()
+    }
+
+    this.setScale(
+      isPowered
+        ? GAME_CONFIG.player.poweredScale
+        : GAME_CONFIG.player.smallScale,
+    )
+    body.setSize(18, isPowered ? 32 : 28)
+    body.setOffset(7, isPowered ? 0 : 4)
+  }
+
+  private playTransformationAnimation(): void {
+    this.transformTween?.stop()
+    this.setAlpha(1)
+
+    this.transformTween = this.scene.tweens.add({
+      targets: this,
+      alpha: 0.45,
+      duration: Math.round(GAME_CONFIG.player.transformDurationMs / 6),
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: 5,
+      onComplete: () => {
+        this.setAlpha(1)
+      },
+    })
+  }
+
+  private syncInvulnerabilityVisual(now: number): void {
+    if (this.isDead()) {
+      return
+    }
+
+    if (!this.isInvulnerable(now)) {
+      if (!this.transformTween?.isPlaying()) {
+        this.setAlpha(1)
+      }
+      return
+    }
+
+    const blinkInterval = GAME_CONFIG.player.invulnerabilityBlinkIntervalMs
+    const blinkPhase = Math.floor(
+      (this.invulnerableUntil - now) / blinkInterval,
+    )
+
+    this.setAlpha(blinkPhase % 2 === 0 ? 0.42 : 1)
   }
 }

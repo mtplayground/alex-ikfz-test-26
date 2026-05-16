@@ -4,6 +4,7 @@ import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
 import { GAME_TITLE } from '@/config'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
+import type { PlayerDamageResult } from '@/entities/player/playerState'
 
 export class PlayerPreviewScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
@@ -18,7 +19,21 @@ export class PlayerPreviewScene extends Phaser.Scene {
 
   private dKey?: Phaser.Input.Keyboard.Key
 
+  private oneKey?: Phaser.Input.Keyboard.Key
+
+  private twoKey?: Phaser.Input.Keyboard.Key
+
+  private threeKey?: Phaser.Input.Keyboard.Key
+
+  private hKey?: Phaser.Input.Keyboard.Key
+
+  private rKey?: Phaser.Input.Keyboard.Key
+
   private player?: Player
+
+  private eventText?: Phaser.GameObjects.Text
+
+  private lastDamageResult?: PlayerDamageResult
 
   public constructor() {
     super(SCENE_KEYS.playerPreview)
@@ -33,7 +48,7 @@ export class PlayerPreviewScene extends Phaser.Scene {
     Player.ensureAnimations(this)
 
     this.add
-      .text(width / 2, 48, `${GAME_TITLE} • Jump Preview`, {
+      .text(width / 2, 48, `${GAME_TITLE} • Player Preview`, {
         color: '#f8fafc',
         fontFamily: 'Arial, sans-serif',
         fontSize: '28px',
@@ -44,9 +59,22 @@ export class PlayerPreviewScene extends Phaser.Scene {
       .text(
         width / 2,
         82,
-        'Left/Right or A/D to move • Shift to run • Hold Z or Space for a higher jump',
+        'Move: ← → / A D • Run: Shift • Jump: Z / Space • 1/2/3 = Small/Big/Fire • H = Hurt • R = Restart',
         {
           color: '#bae6fd',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '13px',
+        },
+      )
+      .setOrigin(0.5)
+
+    this.eventText = this.add
+      .text(
+        width / 2,
+        112,
+        'Preview loaded. Use 1/2/3 and H to test state changes.',
+        {
+          color: '#fde68a',
           fontFamily: 'Arial, sans-serif',
           fontSize: '13px',
         },
@@ -75,6 +103,17 @@ export class PlayerPreviewScene extends Phaser.Scene {
     )
     this.aKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A)
     this.dKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D)
+    this.oneKey = this.input.keyboard?.addKey(
+      Phaser.Input.Keyboard.KeyCodes.ONE,
+    )
+    this.twoKey = this.input.keyboard?.addKey(
+      Phaser.Input.Keyboard.KeyCodes.TWO,
+    )
+    this.threeKey = this.input.keyboard?.addKey(
+      Phaser.Input.Keyboard.KeyCodes.THREE,
+    )
+    this.hKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.H)
+    this.rKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R)
 
     this.syncCanvasState()
   }
@@ -99,6 +138,7 @@ export class PlayerPreviewScene extends Phaser.Scene {
       jumpHeld,
     }
 
+    this.handleDebugStateControls()
     this.player.updateMovement(controls)
 
     if (controls.jumpPressed) {
@@ -120,11 +160,85 @@ export class PlayerPreviewScene extends Phaser.Scene {
     this.game.canvas.dataset.playerAnimation = this.player.getAnimationState()
     this.game.canvas.dataset.playerJumpState = this.player.getJumpState()
     this.game.canvas.dataset.playerGrounded = String(this.player.isGrounded())
+    this.game.canvas.dataset.playerPowerState = this.player.getPowerState()
+    this.game.canvas.dataset.playerInvulnerable = String(
+      this.player.isInvulnerable(),
+    )
+    this.game.canvas.dataset.playerDead = String(this.player.isDead())
+    this.game.canvas.dataset.playerDamageAccepted = String(
+      this.lastDamageResult?.accepted ?? false,
+    )
+    this.game.canvas.dataset.playerDamageDefeated = String(
+      this.lastDamageResult?.defeated ?? false,
+    )
     this.game.canvas.dataset.playerVelocityX = String(
       Math.round(body.velocity.x),
     )
     this.game.canvas.dataset.playerVelocityY = String(
       Math.round(body.velocity.y),
     )
+  }
+
+  private handleDebugStateControls(): void {
+    if (this.player === undefined) {
+      return
+    }
+
+    if (this.rKey !== undefined && Phaser.Input.Keyboard.JustDown(this.rKey)) {
+      this.scene.restart()
+      return
+    }
+
+    if (
+      this.oneKey !== undefined &&
+      Phaser.Input.Keyboard.JustDown(this.oneKey)
+    ) {
+      this.player.forcePowerState('small')
+      this.lastDamageResult = undefined
+      this.eventText?.setText('Forced player to Small form.')
+      return
+    }
+
+    if (
+      this.twoKey !== undefined &&
+      Phaser.Input.Keyboard.JustDown(this.twoKey)
+    ) {
+      this.player.applyPowerState('big')
+      this.lastDamageResult = undefined
+      this.eventText?.setText('Promoted player to Big form.')
+      return
+    }
+
+    if (
+      this.threeKey !== undefined &&
+      Phaser.Input.Keyboard.JustDown(this.threeKey)
+    ) {
+      this.player.applyPowerState('fire')
+      this.lastDamageResult = undefined
+      this.eventText?.setText('Promoted player to Fire form.')
+      return
+    }
+
+    if (this.hKey !== undefined && Phaser.Input.Keyboard.JustDown(this.hKey)) {
+      this.lastDamageResult = this.player.applyDamage()
+
+      if (!this.lastDamageResult.accepted) {
+        this.eventText?.setText(
+          'Damage ignored because the player is invulnerable.',
+        )
+        return
+      }
+
+      if (this.lastDamageResult.defeated) {
+        this.eventText?.setText(
+          'Small form defeated. Press R to restart preview.',
+        )
+        return
+      }
+
+      this.eventText?.setText(
+        `Damage applied. Player downgraded to ${this.player.getPowerState()}.`,
+      )
+    }
   }
 }
