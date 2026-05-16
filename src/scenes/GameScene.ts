@@ -3,11 +3,16 @@ import Phaser from 'phaser'
 import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
 import { getAudioManager, type AudioManager } from '@/audioManager'
 import { resolveBlockHit, shouldProcessBlockHit } from '@/blocks'
+import {
+  COLLECTIBLE_KIND,
+  resolveCollectiblePickup,
+} from '@/collectibles'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
 import { Goomba } from '@/enemies/Goomba'
 import { Koopa } from '@/enemies/Koopa'
 import { isGoombaStompCollision } from '@/enemies/goombaLogic'
 import { resolveKoopaPlayerInteraction } from '@/enemies/koopaLogic'
+import { Collectible } from '@/entities/Collectible'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
 import { resolveFlagpoleBonus, resolveNextStage } from '@/goal'
@@ -59,6 +64,8 @@ export class GameScene extends Phaser.Scene {
 
   private koopas?: Phaser.Physics.Arcade.Group
 
+  private collectibles?: Phaser.Physics.Arcade.Group
+
   private worldWidth = 0
 
   private worldHeight = 0
@@ -83,6 +90,8 @@ export class GameScene extends Phaser.Scene {
 
   private lastEnemyInteraction = 'none'
 
+  private lastCollectibleEffect = 'none'
+
   public constructor() {
     super(SCENE_KEYS.game)
   }
@@ -106,6 +115,7 @@ export class GameScene extends Phaser.Scene {
     this.lastBlockAction = 'none'
     this.lastGoalBonus = 0
     this.lastEnemyInteraction = 'none'
+    this.lastCollectibleEffect = 'none'
   }
 
   public create(): void {
@@ -126,6 +136,7 @@ export class GameScene extends Phaser.Scene {
     Player.ensureAnimations(this)
     Goomba.ensureAnimations(this)
     Koopa.ensureAnimations(this)
+    Collectible.ensureAnimations(this)
 
     const map = this.make.tilemap({ key: ASSET_KEYS.tilemaps.world11 })
     const tileset = map.addTilesetImage(
@@ -164,6 +175,7 @@ export class GameScene extends Phaser.Scene {
 
     this.createGoombas()
     this.createKoopas()
+    this.createCollectibles()
 
     this.createGoalPole()
 
@@ -213,6 +225,20 @@ export class GameScene extends Phaser.Scene {
           this.handleKoopaGoombaCollision(
             koopa as unknown as Koopa,
             goomba as unknown as Goomba,
+          )
+        },
+        undefined,
+        this,
+      )
+    }
+
+    if (this.collectibles !== undefined) {
+      this.physics.add.overlap(
+        this.player,
+        this.collectibles,
+        (_player, collectible) => {
+          this.handlePlayerCollectibleCollision(
+            collectible as unknown as Collectible,
           )
         },
         undefined,
@@ -361,6 +387,24 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.existing(goalZone, true)
     this.goalZone = goalZone
+  }
+
+  private createCollectibles(): void {
+    this.collectibles = this.physics.add.group({
+      allowGravity: false,
+      immovable: true,
+    })
+
+    const collectibleSpecs = [
+      { x: 232, y: this.worldHeight - 118, kind: COLLECTIBLE_KIND.coin },
+      { x: 280, y: this.worldHeight - 118, kind: COLLECTIBLE_KIND.mushroom },
+      { x: 328, y: this.worldHeight - 118, kind: COLLECTIBLE_KIND.fireFlower },
+      { x: 376, y: this.worldHeight - 118, kind: COLLECTIBLE_KIND.star },
+    ] as const
+
+    collectibleSpecs.forEach(({ x, y, kind }) => {
+      this.collectibles?.add(new Collectible(this, x, y, kind))
+    })
   }
 
   private handleGoalReached(): void {
@@ -581,6 +625,39 @@ export class GameScene extends Phaser.Scene {
     goomba.squash()
   }
 
+  private handlePlayerCollectibleCollision(collectible: Collectible): void {
+    if (
+      this.player === undefined ||
+      collectible.active === false ||
+      this.goalState !== 'idle'
+    ) {
+      return
+    }
+
+    const pickupEffect = resolveCollectiblePickup(collectible.kind)
+
+    this.lastCollectibleEffect = collectible.kind
+
+    if (pickupEffect.coins > 0) {
+      this.scoreManager?.addCoins(pickupEffect.coins)
+      this.audioManager?.playSfx(ASSET_KEYS.audio.coin)
+    } else {
+      this.audioManager?.playSfx(ASSET_KEYS.audio.powerup)
+    }
+
+    this.scoreManager?.addScore(pickupEffect.score)
+
+    if (pickupEffect.powerState !== undefined) {
+      this.player.applyPowerState(pickupEffect.powerState)
+    }
+
+    if (pickupEffect.starInvulnerabilityMs !== undefined) {
+      this.player.grantStarInvulnerability(pickupEffect.starInvulnerabilityMs)
+    }
+
+    collectible.disableBody(true, true)
+  }
+
   private animateTileBump(tile: Phaser.Tilemaps.Tile): void {
     const marker = this.add.rectangle(
       tile.getCenterX(),
@@ -710,6 +787,13 @@ export class GameScene extends Phaser.Scene {
     )
     this.game.canvas.dataset.koopaState =
       (this.koopas?.getChildren()?.[0] as Koopa | undefined)?.getState() ?? ''
+    this.game.canvas.dataset.collectibleCount = String(
+      this.collectibles?.countActive(true) ?? 0,
+    )
+    this.game.canvas.dataset.lastCollectibleEffect = this.lastCollectibleEffect
+    this.game.canvas.dataset.playerInvulnerable = String(
+      this.player.isInvulnerable(),
+    )
     this.game.canvas.dataset.lastEnemyInteraction = this.lastEnemyInteraction
   }
 }

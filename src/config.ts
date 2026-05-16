@@ -86,6 +86,7 @@ export const GAME_CONFIG = {
     transformDurationMs: 420,
     invulnerabilityDurationMs: 1200,
     invulnerabilityBlinkIntervalMs: 90,
+    starInvulnerabilityDurationMs: 5000,
   },
   levels: readLevels(import.meta.env.VITE_LEVELS),
 } as const
