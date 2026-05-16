@@ -1,5 +1,38 @@
 import { expect, test } from '@playwright/test'
 
+test('scales the canvas by an integer multiple and centers letterboxing', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1700, height: 1000 })
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await expect(canvas).toBeVisible()
+  await expect(canvas).toHaveAttribute('data-scale', '2')
+  await expect(canvas).toHaveAttribute('data-scaled-width', '1600')
+  await expect(canvas).toHaveAttribute('data-scaled-height', '900')
+  await expect(canvas).toHaveAttribute('data-letterbox-x', '50')
+  await expect(canvas).toHaveAttribute('data-letterbox-y', '50')
+
+  const computedLayout = await canvas.evaluate((element) => {
+    const styles = window.getComputedStyle(element)
+    const bounds = element.getBoundingClientRect()
+
+    return {
+      width: styles.width,
+      height: styles.height,
+      left: Math.round(bounds.left),
+      top: Math.round(bounds.top),
+    }
+  })
+
+  expect(computedLayout.width).toBe('1600px')
+  expect(computedLayout.height).toBe('900px')
+  expect(computedLayout.left).toBeGreaterThanOrEqual(50)
+  expect(computedLayout.top).toBeGreaterThanOrEqual(50)
+})
+
 test('boots into the menu scene', async ({ page }) => {
   await page.goto('/')
 

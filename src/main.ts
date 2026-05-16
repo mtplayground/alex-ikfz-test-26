@@ -1,6 +1,7 @@
 import './style.css'
 
 import Phaser from 'phaser'
+import { installIntegerCanvasScaler } from '@/canvasScaler'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
 import { BootScene } from '@/scenes/BootScene'
 import { GameScene } from '@/scenes/GameScene'
@@ -22,6 +23,10 @@ const config: Phaser.Types.Core.GameConfig = {
   width: GAME_CONFIG.canvas.width,
   height: GAME_CONFIG.canvas.height,
   backgroundColor: '#111827',
+  scale: {
+    mode: Phaser.Scale.NONE,
+    autoCenter: Phaser.Scale.NO_CENTER,
+  },
   physics: {
     default: 'arcade',
     arcade: {
@@ -35,6 +40,19 @@ const config: Phaser.Types.Core.GameConfig = {
 }
 
 const game = new Phaser.Game(config)
+const canvas = container.querySelector('canvas')
+
+if (canvas instanceof HTMLCanvasElement) {
+  installIntegerCanvasScaler(container, canvas, GAME_CONFIG.canvas)
+} else {
+  requestAnimationFrame(() => {
+    const deferredCanvas = container.querySelector('canvas')
+
+    if (deferredCanvas instanceof HTMLCanvasElement) {
+      installIntegerCanvasScaler(container, deferredCanvas, GAME_CONFIG.canvas)
+    }
+  })
+}
 
 if (import.meta.env.DEV) {
   ;(

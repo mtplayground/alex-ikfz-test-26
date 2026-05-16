@@ -12,23 +12,27 @@ html,
 body,
 #app {
   margin: 0;
+  width: 100%;
   min-height: 100%;
 }
 
 body {
   min-height: 100vh;
   background: radial-gradient(circle at top, #1e293b 0%, #020617 65%);
+  overflow: hidden;
 }
 
 #app {
-  display: grid;
-  place-items: center;
-  padding: 24px;
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
 }
 
 canvas {
   display: block;
-  max-width: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
   border: 1px solid #334155;
   box-shadow: 0 24px 60px rgb(0 0 0 / 35%);
 }
