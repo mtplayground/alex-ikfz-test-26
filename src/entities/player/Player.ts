@@ -172,6 +172,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return result
   }
 
+  public grantStarInvulnerability(
+    durationMs: number = GAME_CONFIG.player.starInvulnerabilityDurationMs,
+  ): void {
+    this.invulnerableUntil = Math.max(
+      this.invulnerableUntil,
+      this.scene.time.now + durationMs,
+    )
+    this.setTint(0xfacc15)
+  }
+
   public getPowerState(): PlayerLifeState {
     return this.powerState
   }
@@ -271,6 +281,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     if (!this.isInvulnerable(now)) {
       if (!this.transformTween?.isPlaying()) {
+        this.applyPowerStateVisuals()
         this.setAlpha(1)
       }
       return
@@ -280,6 +291,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const blinkPhase = Math.floor(
       (this.invulnerableUntil - now) / blinkInterval,
     )
+
+    if (this.powerState !== 'fire') {
+      this.setTint(0xfacc15)
+    }
 
     this.setAlpha(blinkPhase % 2 === 0 ? 0.42 : 1)
   }

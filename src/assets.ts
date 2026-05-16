@@ -111,6 +111,7 @@ export const CODE_REFERENCED_ASSET_KEYS = {
   gameScene: [
     ASSET_KEYS.atlases.player,
     ASSET_KEYS.atlases.enemies,
+    ASSET_KEYS.atlases.items,
     ASSET_KEYS.tilesets.overworld,
     ASSET_KEYS.tilemaps.world11,
     ASSET_KEYS.audio.overworldTheme,

@@ -440,3 +440,60 @@ test('a sliding koopa shell damages the player', async ({ page }) => {
     )
   })
 })
+
+test('collectibles apply score, power, and invulnerability effects', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+  await expect(canvas).toHaveAttribute('data-collectible-count', '4')
+
+  await page.evaluate(() => {
+    const game = (
+      window as typeof window & {
+        __zeroclawGame?: {
+          scene: {
+            getScene(key: string): Record<string, unknown>
+          }
+        }
+      }
+    ).__zeroclawGame
+
+    const scene = game?.scene.getScene('game-scene')
+    const collectibles = scene?.collectibles as
+      | { getChildren: () => Array<Record<string, unknown>> }
+      | undefined
+    const handlePlayerCollectibleCollision =
+      scene?.handlePlayerCollectibleCollision as
+        | ((collectible: Record<string, unknown>) => void)
+        | undefined
+
+    if (collectibles === undefined || handlePlayerCollectibleCollision === undefined) {
+      throw new Error('Missing game-scene debug handles for collectible test.')
+    }
+
+    for (const collectible of collectibles.getChildren()) {
+      handlePlayerCollectibleCollision.call(scene, collectible)
+    }
+  })
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return (
+      canvasElement?.dataset.collectibleCount === '0' &&
+      canvasElement?.dataset.lastCollectibleEffect === 'star' &&
+      canvasElement?.dataset.playerPowerState === 'fire' &&
+      canvasElement?.dataset.playerInvulnerable === 'true'
+    )
+  })
+
+  await expect(canvas).toHaveAttribute('data-score', '3200')
+  await expect(canvas).toHaveAttribute('data-coins', '1')
+})
