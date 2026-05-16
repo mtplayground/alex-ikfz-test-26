@@ -1,0 +1,117 @@
+# ZeroClaw Architecture Plan
+
+## Target Stack
+- Vite + TypeScript + pnpm for app/tooling bootstrap.
+- Phaser 3 for runtime/game loop, Arcade Physics, scenes, animation, and tilemap integration.
+- Vitest for unit tests and Playwright for end-to-end flows.
+
+## Proposed Module Structure
+```text
+src/
+  main.ts
+  game/
+    config/
+      gameConfig.ts
+      env.ts
+      constants.ts
+      physics.ts
+    bootstrap/
+      createGame.ts
+      assetManifest.ts
+      stageRegistry.ts
+    scenes/
+      BootScene.ts
+      MenuScene.ts
+      GameScene.ts
+      GameOverScene.ts
+    input/
+      InputManager.ts
+      commands.ts
+    entities/
+      player/
+        Player.ts
+        playerStates.ts
+        playerAnimations.ts
+      enemies/
+        Enemy.ts
+        Goomba.ts
+        Koopa.ts
+      items/
+        Coin.ts
+        Mushroom.ts
+        FireFlower.ts
+        Star.ts
+        Fireball.ts
+      blocks/
+        BrickBlock.ts
+        QuestionBlock.ts
+    systems/
+      CollisionSystem.ts
+      ScoreManager.ts
+      AudioManager.ts
+      StorageService.ts
+      TimerSystem.ts
+    ui/
+      HudScene.ts
+      hudModel.ts
+    types/
+      assets.ts
+      stages.ts
+      save.ts
+      events.ts
+      entities.ts
+  assets/
+    atlases/
+    audio/
+    tilemaps/
+    tilesets/
+tests/
+  unit/
+  e2e/
+```
+
+## Shared Types and Contracts
+- `AssetKey`, `AssetManifestEntry`, `AudioKey`, `AtlasKey`, `TilemapKey` to keep preload, scene use, and manifest tests aligned.
+- `PlayerForm`, `PlayerState`, `DamageResult`, and `MovementSnapshot` for deterministic player logic and tests.
+- `StageId`, `StageDefinition`, `StageProgress`, and `SaveData` for level progression and storage.
+- `ScoreState`, `HudState`, and `TimerState` so gameplay systems expose data without tight scene coupling.
+- Phaser event bus contracts in `events.ts` for score, coin, player death, power-up, stage complete, and reset events.
+
+## Core Design Decisions
+- Keep Phaser scenes thin. Put gameplay rules in plain TypeScript classes where possible so Vitest can cover logic without full Phaser boot.
+- Treat `GameScene` as the orchestration layer only. Entity classes own local behavior; systems own cross-cutting logic.
+- Centralize asset definitions in `assetManifest.ts`; all preload, integrity tests, and scene references consume that single source.
+- Use a small event-driven architecture via Phaser events or a typed wrapper to decouple HUD, audio, score, and scene transitions.
+- Build the player around a state machine early to prevent later power-up and damage issues from becoming scattered conditionals.
+- Keep tile/block/enemy/item interactions behind `CollisionSystem` helpers instead of embedding collision logic directly in scene callbacks.
+- Implement storage behind `StorageService` with a serializable schema version from the start to avoid migration pain in later issues.
+- Add a separate HUD scene/overlay instead of mixing HUD text into the main world camera; this makes scaling and scene transitions cleaner.
+- Design stage registry as data-first JSON/TS objects so adding `1-2` or more stages later is configuration, not scene duplication.
+- Make responsive scaling integer-multiple from the beginning in `gameConfig.ts` to avoid UI/world alignment regressions late in the project.
+
+## Issue Dependency Map
+- Foundation: `#1`, `#3`, `#4`, `#5`
+- Runtime bootstrap: `#2` depends on `#1`; `#7` depends on `#2`, `#5`, `#6`; `#8` depends on `#7`, `#15`
+- Asset pipeline: `#6` depends on `#1`; `#9` depends on `#6`, `#7`
+- Input and player core: `#10` depends on `#2`; `#11` depends on `#10`, `#6`; `#12` depends on `#11`; `#13` depends on `#12`; `#14` depends on `#13`
+- Persistence and score: `#15` depends on `#5`; `#16` depends on `#15`; `#17` depends on `#7`, `#6`; `#18` depends on `#15`, `#16`
+- World and collisions: `#19` depends on `#6`, `#7`; `#20` depends on `#19`, `#12`; `#21` depends on `#20`, `#16`; `#22` depends on `#19`, `#20`, `#29`, `#32`; `#23` depends on `#20`, `#21`
+- Enemies and collectibles: `#24` depends on `#20`, `#13`; `#25` depends on `#24`; `#26` depends on `#21`, `#13`, `#16`; `#27` depends on `#13`, `#25`, `#26`; `#28` depends on `#24`, `#25`, `#26`, `#27`
+- UI and progression: `#29` depends on `#16`, `#19`; `#30` depends on `#29`, `#20`; `#31` depends on `#22`, `#30`, `#15`; `#32` depends on `#19`, `#22`, `#31`, `#15`
+- Platform quality: `#33` depends on `#19`, `#29`
+- E2E coverage: `#34` depends on `#8`, `#10`, `#33`, `#4`; `#35` depends on `#22`, `#24`, `#26`, `#29`, `#32`, `#4`; `#36` depends on `#31`, `#15`, `#4`
+- Release: `#37` depends on all core gameplay and test scaffolding, especially `#33` through `#36`
+
+## Recommended Implementation Order
+1. `#1` through `#5` to lock the tooling, config, and constants.
+2. `#6` through `#10` to establish assets, preload, menu, tests, and input.
+3. `#11` through `#18` to finish player, score, audio, storage, and unit coverage.
+4. `#19` through `#23` to make a playable level with block and collision logic.
+5. `#24` through `#32` to layer in enemies, collectibles, HUD, timers, scenes, and progression.
+6. `#33` through `#37` to stabilize scaling, end-to-end coverage, and production documentation.
+
+## Risk Notes
+- Asset availability and naming are the highest early integration risk; the manifest must remain authoritative.
+- Phaser-heavy classes are harder to test directly, so game rules should stay in framework-light helpers where practical.
+- Collision ordering will affect blocks, enemies, collectibles, and fireballs; keep those rules centralized before expanding content.
+- Save data semantics must be defined before `Continue`/`Reset`, stage progression, and game-over flows to avoid incompatible assumptions.
