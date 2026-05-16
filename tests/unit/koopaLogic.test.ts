@@ -79,11 +79,40 @@ describe('resolveKoopaPlayerInteraction', () => {
     })
   })
 
+  it('kicks an idle shell on side contact too', () => {
+    expect(
+      resolveKoopaPlayerInteraction({
+        state: 'shell-idle',
+        stomped: false,
+        playerX: 30,
+        koopaX: 20,
+      }),
+    ).toEqual({
+      action: 'kick-shell',
+      nextState: 'shell-sliding',
+      shellDirection: -1,
+    })
+  })
+
   it('treats a sliding shell as harmful to the player', () => {
     expect(
       resolveKoopaPlayerInteraction({
         state: 'shell-sliding',
         stomped: false,
+        playerX: 10,
+        koopaX: 20,
+      }),
+    ).toEqual({
+      action: 'damage',
+      nextState: 'shell-sliding',
+    })
+  })
+
+  it('keeps a sliding shell in the sliding state even if contacted from above', () => {
+    expect(
+      resolveKoopaPlayerInteraction({
+        state: 'shell-sliding',
+        stomped: true,
         playerX: 10,
         koopaX: 20,
       }),

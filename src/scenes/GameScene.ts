@@ -4,6 +4,7 @@ import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
 import { getAudioManager, type AudioManager } from '@/audioManager'
 import { resolveBlockHit, shouldProcessBlockHit } from '@/blocks'
 import {
+  applyCollectiblePickupEffect,
   COLLECTIBLE_KIND,
   resolveCollectiblePickup,
 } from '@/collectibles'
@@ -16,16 +17,10 @@ import { resolveKoopaPlayerInteraction } from '@/enemies/koopaLogic'
 import { Collectible } from '@/entities/Collectible'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
-import {
-  MAX_ACTIVE_FIREBALLS,
-  resolveFireballDirection,
-} from '@/fireball'
+import { MAX_ACTIVE_FIREBALLS, resolveFireballDirection } from '@/fireball'
 import { resolveFlagpoleBonus, resolveNextStage } from '@/goal'
 import { getScoreManager, type ScoreManager } from '@/scoreManager'
-import {
-  createStorageService,
-  type StorageService,
-} from '@/storageService'
+import { createStorageService, type StorageService } from '@/storageService'
 
 const CAMERA_ZOOM = 1.25
 const GOAL_POLE_HEIGHT = 160
@@ -440,7 +435,13 @@ export class GameScene extends Phaser.Scene {
     this.goalPoleBottomY = poleBaseY
 
     this.add
-      .rectangle(poleX, poleBaseY - GOAL_POLE_HEIGHT / 2, 6, GOAL_POLE_HEIGHT, 0xe2e8f0)
+      .rectangle(
+        poleX,
+        poleBaseY - GOAL_POLE_HEIGHT / 2,
+        6,
+        GOAL_POLE_HEIGHT,
+        0xe2e8f0,
+      )
       .setOrigin(0.5)
 
     this.add
@@ -500,7 +501,10 @@ export class GameScene extends Phaser.Scene {
       0,
       1,
     )
-    const nextStageId = resolveNextStage(GAME_CONFIG.levels, this.currentStageId)
+    const nextStageId = resolveNextStage(
+      GAME_CONFIG.levels,
+      this.currentStageId,
+    )
 
     this.goalState = 'sliding'
     this.lastBlockAction = 'goal'
@@ -671,7 +675,10 @@ export class GameScene extends Phaser.Scene {
         this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
         koopa.stompIntoShell()
         playerBody.setVelocityY(
-          Math.min(playerBody.velocity.y, GAME_CONFIG.player.jumpVelocity * 0.45),
+          Math.min(
+            playerBody.velocity.y,
+            GAME_CONFIG.player.jumpVelocity * 0.45,
+          ),
         )
         return
       case 'kick-shell':
@@ -679,7 +686,10 @@ export class GameScene extends Phaser.Scene {
         this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
         koopa.kickShell(interaction.shellDirection ?? 1)
         playerBody.setVelocityY(
-          Math.min(playerBody.velocity.y, GAME_CONFIG.player.jumpVelocity * 0.35),
+          Math.min(
+            playerBody.velocity.y,
+            GAME_CONFIG.player.jumpVelocity * 0.35,
+          ),
         )
         return
       case 'damage':
@@ -738,10 +748,7 @@ export class GameScene extends Phaser.Scene {
     fireball.destroy()
   }
 
-  private handleFireballKoopaCollision(
-    fireball: Fireball,
-    koopa: Koopa,
-  ): void {
+  private handleFireballKoopaCollision(fireball: Fireball, koopa: Koopa): void {
     if (koopa.isDefeated()) {
       return
     }
@@ -767,20 +774,16 @@ export class GameScene extends Phaser.Scene {
     this.lastCollectibleEffect = collectible.kind
 
     if (pickupEffect.coins > 0) {
-      this.scoreManager?.addCoins(pickupEffect.coins)
       this.audioManager?.playSfx(ASSET_KEYS.audio.coin)
     } else {
       this.audioManager?.playSfx(ASSET_KEYS.audio.powerup)
     }
 
-    this.scoreManager?.addScore(pickupEffect.score)
-
-    if (pickupEffect.powerState !== undefined) {
-      this.player.applyPowerState(pickupEffect.powerState)
-    }
-
-    if (pickupEffect.starInvulnerabilityMs !== undefined) {
-      this.player.grantStarInvulnerability(pickupEffect.starInvulnerabilityMs)
+    if (this.scoreManager !== undefined) {
+      applyCollectiblePickupEffect(pickupEffect, {
+        scoreTarget: this.scoreManager,
+        playerTarget: this.player,
+      })
     }
 
     collectible.disableBody(true, true)
@@ -871,7 +874,10 @@ export class GameScene extends Phaser.Scene {
     this.syncCameraToPlayer()
 
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body
-    const nextStageId = resolveNextStage(GAME_CONFIG.levels, this.currentStageId)
+    const nextStageId = resolveNextStage(
+      GAME_CONFIG.levels,
+      this.currentStageId,
+    )
 
     this.game.canvas.dataset.scene = SCENE_KEYS.game
     this.game.canvas.dataset.mapWidth = String(map.widthInPixels)
