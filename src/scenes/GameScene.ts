@@ -112,6 +112,8 @@ export class GameScene extends Phaser.Scene {
 
   private lastTimerEvent = 'running'
 
+  private gameOverScheduled = false
+
   public constructor() {
     super(SCENE_KEYS.game)
   }
@@ -139,6 +141,7 @@ export class GameScene extends Phaser.Scene {
     this.lastCollectibleEffect = 'none'
     this.lastProjectileEvent = 'none'
     this.lastTimerEvent = 'running'
+    this.gameOverScheduled = false
     this.stageTimeRemainingSeconds = GAME_CONFIG.stage.timeLimitSeconds
   }
 
@@ -351,6 +354,10 @@ export class GameScene extends Phaser.Scene {
       this.updateActiveGameplay()
     } else {
       this.updateGoalSequence()
+    }
+
+    if (this.goalState === 'idle' && this.player.isDead()) {
+      this.startGameOverSequence('defeat')
     }
 
     this.goombas?.getChildren().forEach((enemy) => {
@@ -585,6 +592,7 @@ export class GameScene extends Phaser.Scene {
               completedRun: true,
               score: this.scoreManager?.getScore() ?? 0,
               reason: 'defeat',
+              stageId: this.currentStageId,
             })
             return
           }
@@ -622,25 +630,40 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleTimeExpired(): void {
+    if (this.player === undefined || this.goalState !== 'idle') {
+      return
+    }
+
+    this.lastTimerEvent = 'expired'
+    this.lastEnemyInteraction = 'time-up'
+    this.startGameOverSequence('timeout')
+  }
+
+  private startGameOverSequence(reason: 'defeat' | 'timeout'): void {
     if (
       this.player === undefined ||
       this.scoreManager === undefined ||
-      this.goalState !== 'idle'
+      this.gameOverScheduled
     ) {
       return
     }
 
+    this.gameOverScheduled = true
     this.goalState = 'complete'
-    this.lastTimerEvent = 'expired'
-    this.lastEnemyInteraction = 'time-up'
     this.audioManager?.stopBgm()
-    this.player.defeat()
+
+    if (!this.player.isDead()) {
+      this.player.defeat()
+    }
+
+    this.scoreManager.loseLife(1)
 
     this.time.delayedCall(TIMEOUT_TRANSITION_DELAY_MS, () => {
       this.scene.start(SCENE_KEYS.gameOver, {
         completedRun: false,
         score: this.scoreManager?.getScore() ?? 0,
-        reason: 'timeout',
+        reason,
+        stageId: this.currentStageId,
       })
     })
   }

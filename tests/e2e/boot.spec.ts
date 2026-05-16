@@ -251,6 +251,84 @@ test('stage timer expiration defeats the player and transitions to game over', a
 
   await expect(canvas).toHaveAttribute('data-game-over-completed-run', 'false')
   await expect(canvas).toHaveAttribute('data-game-over-reason', 'timeout')
+  await expect(canvas).toHaveAttribute('data-game-over-stage-id', '1-1')
+  await expect(canvas).toHaveAttribute('data-game-over-lives', '2')
+  await expect(canvas).toHaveAttribute('data-game-over-retry-available', 'true')
+
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return (
+      canvasElement?.dataset.scene === 'game-scene' &&
+      canvasElement?.dataset.stageId === '1-1' &&
+      canvasElement?.dataset.lives === '2'
+    )
+  })
+})
+
+test('game over without remaining lives returns to the menu', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+
+  await page.evaluate(() => {
+    const game = (
+      window as typeof window & {
+        __zeroclawGame?: {
+          scene: {
+            getScene(key: string): Record<string, unknown>
+          }
+        }
+      }
+    ).__zeroclawGame
+
+    const scene = game?.scene.getScene('game-scene') as
+      | {
+          scoreManager?: { loseLife: (amount: number) => number }
+          player?: { defeat: () => void }
+          startGameOverSequence?: (reason: 'defeat' | 'timeout') => void
+        }
+      | undefined
+
+    if (
+      scene?.scoreManager === undefined ||
+      scene.player === undefined ||
+      scene.startGameOverSequence === undefined
+    ) {
+      throw new Error('Missing debug handles for zero-life game over test.')
+    }
+
+    scene.scoreManager.loseLife(2)
+    scene.player.defeat()
+    scene.startGameOverSequence('defeat')
+  })
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return canvasElement?.dataset.scene === 'game-over-scene'
+  })
+
+  await expect(canvas).toHaveAttribute('data-game-over-lives', '0')
+  await expect(canvas).toHaveAttribute(
+    'data-game-over-retry-available',
+    'false',
+  )
+
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return canvasElement?.dataset.menuSelection === 'start'
+  })
 })
 
 test('goomba stomp removes the enemy', async ({ page }) => {
@@ -705,4 +783,67 @@ test('fire mario shoots fireballs that defeat enemies', async ({ page }) => {
   })
 
   await expect(canvas).toHaveAttribute('data-score', '100')
+})
+
+test('all clear screen shows high score and returns to the menu', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+
+  await page.evaluate(() => {
+    const game = (
+      window as typeof window & {
+        __zeroclawGame?: {
+          scene: {
+            getScene(key: string): Record<string, unknown>
+          }
+        }
+      }
+    ).__zeroclawGame
+
+    const scene = game?.scene.getScene('game-scene')
+    const player = scene?.player as
+      | { setPosition: (x: number, y: number) => void }
+      | undefined
+    const stageTimerScene = scene as
+      | { stageTimeRemainingSeconds?: number }
+      | undefined
+    const goalPoleX = scene?.goalPoleX as number | undefined
+    const goalPoleTopY = scene?.goalPoleTopY as number | undefined
+
+    if (
+      player === undefined ||
+      goalPoleX === undefined ||
+      goalPoleTopY === undefined
+    ) {
+      throw new Error('Missing game-scene debug handles for all-clear test.')
+    }
+
+    stageTimerScene.stageTimeRemainingSeconds = 1
+    ;(scene as { currentStageId?: string }).currentStageId = '1-2'
+    player.setPosition(goalPoleX, goalPoleTopY + 20)
+  })
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return canvasElement?.dataset.scene === 'game-over-scene'
+  })
+
+  await expect(canvas).toHaveAttribute('data-game-over-completed-run', 'true')
+  await expect(canvas).toHaveAttribute('data-game-over-high-score', '5050')
+
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return canvasElement?.dataset.menuSelection === 'start'
+  })
 })
