@@ -5,7 +5,9 @@ import { getAudioManager, type AudioManager } from '@/audioManager'
 import { resolveBlockHit, shouldProcessBlockHit } from '@/blocks'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
 import { Goomba } from '@/enemies/Goomba'
+import { Koopa } from '@/enemies/Koopa'
 import { isGoombaStompCollision } from '@/enemies/goombaLogic'
+import { resolveKoopaPlayerInteraction } from '@/enemies/koopaLogic'
 import { Player } from '@/entities/player/Player'
 import type { PlayerControls } from '@/entities/player/playerMotion'
 import { resolveFlagpoleBonus, resolveNextStage } from '@/goal'
@@ -54,6 +56,8 @@ export class GameScene extends Phaser.Scene {
   private goalZone?: Phaser.GameObjects.Zone
 
   private goombas?: Phaser.Physics.Arcade.Group
+
+  private koopas?: Phaser.Physics.Arcade.Group
 
   private worldWidth = 0
 
@@ -121,6 +125,7 @@ export class GameScene extends Phaser.Scene {
 
     Player.ensureAnimations(this)
     Goomba.ensureAnimations(this)
+    Koopa.ensureAnimations(this)
 
     const map = this.make.tilemap({ key: ASSET_KEYS.tilemaps.world11 })
     const tileset = map.addTilesetImage(
@@ -158,6 +163,7 @@ export class GameScene extends Phaser.Scene {
     )
 
     this.createGoombas()
+    this.createKoopas()
 
     this.createGoalPole()
 
@@ -180,6 +186,34 @@ export class GameScene extends Phaser.Scene {
         this.goombas,
         (_player, enemy) => {
           this.handlePlayerGoombaCollision(enemy as Goomba)
+        },
+        undefined,
+        this,
+      )
+    }
+
+    if (this.koopas !== undefined) {
+      this.physics.add.collider(this.koopas, worldLayer)
+      this.physics.add.collider(
+        this.player,
+        this.koopas,
+        (_player, enemy) => {
+          this.handlePlayerKoopaCollision(enemy as unknown as Koopa)
+        },
+        undefined,
+        this,
+      )
+    }
+
+    if (this.goombas !== undefined && this.koopas !== undefined) {
+      this.physics.add.overlap(
+        this.koopas,
+        this.goombas,
+        (koopa, goomba) => {
+          this.handleKoopaGoombaCollision(
+            koopa as unknown as Koopa,
+            goomba as unknown as Goomba,
+          )
         },
         undefined,
         this,
@@ -225,6 +259,9 @@ export class GameScene extends Phaser.Scene {
 
     this.goombas?.getChildren().forEach((enemy) => {
       ;(enemy as Goomba).updatePatrol()
+    })
+    this.koopas?.getChildren().forEach((enemy) => {
+      ;(enemy as unknown as Koopa).updateMovement()
     })
 
     const map = this.worldLayer?.tilemap
@@ -279,13 +316,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createGoombas(): void {
-    const goomba = new Goomba(this, 392, this.worldHeight - 50)
+    const goomba = new Goomba(this, 520, this.worldHeight - 50)
 
     this.goombas = this.physics.add.group({
       allowGravity: true,
       immovable: false,
     })
     this.goombas.add(goomba)
+  }
+
+  private createKoopas(): void {
+    const koopa = new Koopa(this, 432, this.worldHeight - 50)
+
+    this.koopas = this.physics.add.group({
+      allowGravity: true,
+      immovable: false,
+    })
+    this.koopas.add(koopa)
   }
 
   private createGoalPole(): void {
@@ -474,6 +521,66 @@ export class GameScene extends Phaser.Scene {
     this.player.applyDamage()
   }
 
+  private handlePlayerKoopaCollision(koopa: Koopa): void {
+    if (
+      this.player === undefined ||
+      this.goalState !== 'idle' ||
+      koopa.isDefeated()
+    ) {
+      return
+    }
+
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body
+    const koopaBody = koopa.body as Phaser.Physics.Arcade.Body
+    const stomped = isGoombaStompCollision({
+      playerBottom: playerBody.bottom,
+      enemyTop: koopaBody.top,
+      playerVelocityY: playerBody.velocity.y,
+    })
+    const interaction = resolveKoopaPlayerInteraction({
+      state: koopa.getState(),
+      stomped,
+      playerX: this.player.x,
+      koopaX: koopa.x,
+    })
+
+    switch (interaction.action) {
+      case 'stomp-shell':
+        this.lastEnemyInteraction = 'koopa-stomp'
+        this.scoreManager?.addScore(100)
+        this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
+        koopa.stompIntoShell()
+        playerBody.setVelocityY(
+          Math.min(playerBody.velocity.y, GAME_CONFIG.player.jumpVelocity * 0.45),
+        )
+        return
+      case 'kick-shell':
+        this.lastEnemyInteraction = 'koopa-kick'
+        this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
+        koopa.kickShell(interaction.shellDirection ?? 1)
+        playerBody.setVelocityY(
+          Math.min(playerBody.velocity.y, GAME_CONFIG.player.jumpVelocity * 0.35),
+        )
+        return
+      case 'damage':
+        this.lastEnemyInteraction = koopa.isShellSliding()
+          ? 'koopa-shell-hurt'
+          : 'hurt'
+        this.player.applyDamage()
+    }
+  }
+
+  private handleKoopaGoombaCollision(koopa: Koopa, goomba: Goomba): void {
+    if (!koopa.isShellSliding() || goomba.isDefeated()) {
+      return
+    }
+
+    this.lastEnemyInteraction = 'koopa-shell-kill'
+    this.scoreManager?.addScore(200)
+    this.audioManager?.playSfx(ASSET_KEYS.audio.stomp)
+    goomba.squash()
+  }
+
   private animateTileBump(tile: Phaser.Tilemaps.Tile): void {
     const marker = this.add.rectangle(
       tile.getCenterX(),
@@ -598,6 +705,11 @@ export class GameScene extends Phaser.Scene {
     this.game.canvas.dataset.goombaCount = String(
       this.goombas?.countActive(true) ?? 0,
     )
+    this.game.canvas.dataset.koopaCount = String(
+      this.koopas?.countActive(true) ?? 0,
+    )
+    this.game.canvas.dataset.koopaState =
+      (this.koopas?.getChildren()?.[0] as Koopa | undefined)?.getState() ?? ''
     this.game.canvas.dataset.lastEnemyInteraction = this.lastEnemyInteraction
   }
 }

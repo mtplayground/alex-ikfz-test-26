@@ -110,10 +110,14 @@ export const CODE_REFERENCED_ASSET_KEYS = {
   playerPreviewScene: [ASSET_KEYS.atlases.player, ASSET_KEYS.audio.jump],
   gameScene: [
     ASSET_KEYS.atlases.player,
+    ASSET_KEYS.atlases.enemies,
     ASSET_KEYS.tilesets.overworld,
     ASSET_KEYS.tilemaps.world11,
     ASSET_KEYS.audio.overworldTheme,
     ASSET_KEYS.audio.stageClear,
     ASSET_KEYS.audio.jump,
+    ASSET_KEYS.audio.coin,
+    ASSET_KEYS.audio.powerup,
+    ASSET_KEYS.audio.stomp,
   ],
 } as const

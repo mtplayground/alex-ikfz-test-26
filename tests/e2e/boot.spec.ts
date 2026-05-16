@@ -274,3 +274,169 @@ test('goomba side contact damages the player', async ({ page }) => {
     )
   })
 })
+
+test('koopa stomp creates a shell, kicking it defeats a goomba', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+  await expect(canvas).toHaveAttribute('data-koopa-count', '1')
+  await expect(canvas).toHaveAttribute('data-goomba-count', '1')
+
+  await page.evaluate(() => {
+    const game = (
+      window as typeof window & {
+        __zeroclawGame?: {
+          scene: {
+            getScene(key: string): Record<string, unknown>
+          }
+        }
+      }
+    ).__zeroclawGame
+
+    const scene = game?.scene.getScene('game-scene')
+    const player = scene?.player as
+      | {
+          x: number
+          y: number
+          setPosition: (x: number, y: number) => void
+          body?: {
+            bottom: number
+            height: number
+            position: { y: number }
+            setVelocity: (x: number, y: number) => void
+          }
+        }
+      | undefined
+    const koopas = scene?.koopas as
+      | { getChildren: () => Array<Record<string, unknown>> }
+      | undefined
+    const goombas = scene?.goombas as
+      | { getChildren: () => Array<Record<string, unknown>> }
+      | undefined
+    const koopa = koopas?.getChildren()?.[0] as
+      | { x: number; y: number; body?: { top: number } }
+      | undefined
+    const goomba = goombas?.getChildren()?.[0] as Record<string, unknown> | undefined
+    const handlePlayerKoopaCollision = scene?.handlePlayerKoopaCollision as
+      | ((koopa: Record<string, unknown>) => void)
+      | undefined
+    const handleKoopaGoombaCollision = scene?.handleKoopaGoombaCollision as
+      | ((koopa: Record<string, unknown>, goomba: Record<string, unknown>) => void)
+      | undefined
+
+    if (
+      player === undefined ||
+      player.body === undefined ||
+      koopa === undefined ||
+      koopa.body === undefined ||
+      goomba === undefined ||
+      handlePlayerKoopaCollision === undefined ||
+      handleKoopaGoombaCollision === undefined
+    ) {
+      throw new Error('Missing game-scene debug handles for koopa shell test.')
+    }
+
+    player.setPosition(koopa.x, koopa.y - 26)
+    player.body.position.y = koopa.body.top - player.body.height - 2
+    player.body.setVelocity(0, 240)
+    handlePlayerKoopaCollision.call(scene, koopa)
+
+    player.setPosition(koopa.x - 12, koopa.y)
+    player.body.setVelocity(60, 0)
+    handlePlayerKoopaCollision.call(scene, koopa)
+    handleKoopaGoombaCollision.call(scene, koopa, goomba)
+  })
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return (
+      canvasElement?.dataset.koopaState === 'shell-sliding' &&
+      canvasElement?.dataset.goombaCount === '0' &&
+      canvasElement?.dataset.lastEnemyInteraction === 'koopa-shell-kill'
+    )
+  })
+})
+
+test('a sliding koopa shell damages the player', async ({ page }) => {
+  await page.goto('/')
+
+  const canvas = page.locator('canvas')
+
+  await canvas.click()
+  await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
+  await page.keyboard.press('Enter')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+
+  await page.evaluate(() => {
+    const game = (
+      window as typeof window & {
+        __zeroclawGame?: {
+          scene: {
+            getScene(key: string): Record<string, unknown>
+          }
+        }
+      }
+    ).__zeroclawGame
+
+    const scene = game?.scene.getScene('game-scene')
+    const player = scene?.player as
+      | {
+          forcePowerState: (state: 'small' | 'big' | 'fire') => void
+          setPosition: (x: number, y: number) => void
+          body?: {
+            height: number
+            position: { y: number }
+            setVelocity: (x: number, y: number) => void
+          }
+        }
+      | undefined
+    const koopas = scene?.koopas as
+      | { getChildren: () => Array<Record<string, unknown>> }
+      | undefined
+    const koopa = koopas?.getChildren()?.[0] as
+      | { x: number; y: number; body?: { top: number } }
+      | undefined
+    const handlePlayerKoopaCollision = scene?.handlePlayerKoopaCollision as
+      | ((koopa: Record<string, unknown>) => void)
+      | undefined
+
+    if (
+      player === undefined ||
+      player.body === undefined ||
+      koopa === undefined ||
+      koopa.body === undefined ||
+      handlePlayerKoopaCollision === undefined
+    ) {
+      throw new Error('Missing game-scene debug handles for koopa hurt test.')
+    }
+
+    player.forcePowerState('big')
+
+    player.setPosition(koopa.x, koopa.y - 26)
+    player.body.position.y = koopa.body.top - player.body.height - 2
+    player.body.setVelocity(0, 240)
+    handlePlayerKoopaCollision.call(scene, koopa)
+
+    player.setPosition(koopa.x - 10, koopa.y)
+    player.body.setVelocity(60, 0)
+    handlePlayerKoopaCollision.call(scene, koopa)
+    handlePlayerKoopaCollision.call(scene, koopa)
+  })
+
+  await page.waitForFunction(() => {
+    const canvasElement = document.querySelector('canvas')
+
+    return (
+      canvasElement?.dataset.lastEnemyInteraction === 'koopa-shell-hurt' &&
+      canvasElement?.dataset.playerPowerState === 'small'
+    )
+  })
+})
