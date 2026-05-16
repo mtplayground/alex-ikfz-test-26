@@ -11,7 +11,7 @@ test('boots into the menu scene', async ({ page }) => {
   await expect(canvas).toHaveAttribute('data-menu-has-save', 'false')
 })
 
-test('guards Continue when no save exists, then starts and exercises the jump preview', async ({
+test('guards Continue when no save exists, then starts the game scene and follows the player camera', async ({
   page,
 }) => {
   await page.goto('/')
@@ -31,34 +31,24 @@ test('guards Continue when no save exists, then starts and exercises the jump pr
   await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
 
   await page.keyboard.press('Enter')
-  await expect(canvas).toHaveAttribute('data-scene', 'player-preview-scene')
-  await expect(canvas).toHaveAttribute('data-player-grounded', 'true')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
+  await expect(canvas).toHaveAttribute('data-map-width', '800')
 
-  await page.keyboard.down('Space')
-  await expect(canvas).toHaveAttribute('data-player-grounded', 'false')
-  await expect(canvas).toHaveAttribute('data-player-jump-state', 'rising')
-  await page.keyboard.up('Space')
-
+  await page.keyboard.down('ArrowRight')
   await page.waitForFunction(() => {
     const canvasElement = document.querySelector('canvas')
 
-    return Number(canvasElement?.dataset.playerVelocityY ?? '0') > -200
+    return Number(canvasElement?.dataset.playerX ?? '0') > 300
   })
-
   await page.waitForFunction(() => {
     const canvasElement = document.querySelector('canvas')
 
-    return canvasElement?.dataset.playerJumpState === 'falling'
+    return Number(canvasElement?.dataset.cameraScrollX ?? '0') > 0
   })
-
-  await page.waitForFunction(() => {
-    const canvasElement = document.querySelector('canvas')
-
-    return canvasElement?.dataset.playerGrounded === 'true'
-  })
+  await page.keyboard.up('ArrowRight')
 })
 
-test('supports state upgrades, downgrade damage, and small-form death', async ({
+test('game scene keeps the camera inside world bounds while the player moves', async ({
   page,
 }) => {
   await page.goto('/')
@@ -72,40 +62,21 @@ test('supports state upgrades, downgrade damage, and small-form death', async ({
   await page.keyboard.press('ArrowUp')
   await expect(canvas).toHaveAttribute('data-menu-selection', 'start')
   await page.keyboard.press('Enter')
-  await expect(canvas).toHaveAttribute('data-scene', 'player-preview-scene')
+  await expect(canvas).toHaveAttribute('data-scene', 'game-scene')
 
-  await expect(canvas).toHaveAttribute('data-player-power-state', 'small')
-
-  await page.keyboard.press('2')
-  await expect(canvas).toHaveAttribute('data-player-power-state', 'big')
-
-  await page.keyboard.press('3')
-  await expect(canvas).toHaveAttribute('data-player-power-state', 'fire')
-
-  await page.keyboard.press('H')
-  await expect(canvas).toHaveAttribute('data-player-power-state', 'big')
-  await expect(canvas).toHaveAttribute('data-player-invulnerable', 'true')
-
-  await page.keyboard.press('H')
-  await expect(canvas).toHaveAttribute('data-player-power-state', 'big')
-
+  await page.keyboard.down('ArrowRight')
   await page.waitForFunction(() => {
     const canvasElement = document.querySelector('canvas')
 
-    return canvasElement?.dataset.playerInvulnerable === 'false'
+    return Number(canvasElement?.dataset.cameraScrollX ?? '0') >= 100
   })
+  await page.keyboard.up('ArrowRight')
 
-  await page.keyboard.press('H')
-  await expect(canvas).toHaveAttribute('data-player-power-state', 'small')
+  const cameraScrollX = Number(
+    (await canvas.getAttribute('data-camera-scroll-x')) ?? '0',
+  )
+  const mapWidth = Number((await canvas.getAttribute('data-map-width')) ?? '0')
 
-  await page.waitForFunction(() => {
-    const canvasElement = document.querySelector('canvas')
-
-    return canvasElement?.dataset.playerInvulnerable === 'false'
-  })
-
-  await page.keyboard.press('H')
-  await expect(canvas).toHaveAttribute('data-player-power-state', 'dead')
-  await expect(canvas).toHaveAttribute('data-player-dead', 'true')
-  await expect(canvas).toHaveAttribute('data-player-damage-defeated', 'true')
+  expect(cameraScrollX).toBeGreaterThanOrEqual(0)
+  expect(cameraScrollX).toBeLessThanOrEqual(mapWidth)
 })

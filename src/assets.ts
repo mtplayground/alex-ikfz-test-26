@@ -2,6 +2,7 @@ export const SCENE_KEYS = {
   boot: 'boot-scene',
   menu: 'menu-scene',
   playerPreview: 'player-preview-scene',
+  game: 'game-scene',
 } as const
 
 export const ASSET_KEYS = {
@@ -101,4 +102,11 @@ export const CODE_REFERENCED_ASSET_KEYS = {
     ASSET_KEYS.audio.stomp,
   ],
   playerPreviewScene: [ASSET_KEYS.atlases.player, ASSET_KEYS.audio.jump],
+  gameScene: [
+    ASSET_KEYS.atlases.player,
+    ASSET_KEYS.tilesets.overworld,
+    ASSET_KEYS.tilemaps.world11,
+    ASSET_KEYS.audio.overworldTheme,
+    ASSET_KEYS.audio.jump,
+  ],
 } as const

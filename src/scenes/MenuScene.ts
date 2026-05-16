@@ -155,7 +155,7 @@ export class MenuScene extends Phaser.Scene {
 
     this.storageService.setFurthestStage(startingStage)
     getAudioManager(this).playSfx(ASSET_KEYS.audio.powerup)
-    this.scene.start(SCENE_KEYS.playerPreview)
+    this.scene.start(SCENE_KEYS.game)
   }
 
   private continueGame(): void {
@@ -166,7 +166,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     getAudioManager(this).playSfx(ASSET_KEYS.audio.powerup)
-    this.scene.start(SCENE_KEYS.playerPreview)
+    this.scene.start(SCENE_KEYS.game)
   }
 
   private resetProgress(): void {
