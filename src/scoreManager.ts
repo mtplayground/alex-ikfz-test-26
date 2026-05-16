@@ -14,10 +14,9 @@ export interface ScoreManagerOptions {
   startingLives?: number
 }
 
-function sanitizeNonNegativeInteger(
-  value: number,
-  fallback: number,
-): number {
+export type ScoreStateListener = (state: ScoreState) => void
+
+function sanitizeNonNegativeInteger(value: number, fallback: number): number {
   if (!Number.isFinite(value)) {
     return fallback
   }
@@ -33,6 +32,8 @@ export class ScoreManager {
   private lives: number
 
   private readonly storageService: StorageService
+
+  private readonly listeners = new Set<ScoreStateListener>()
 
   public constructor(
     storageService: StorageService,
@@ -79,6 +80,8 @@ export class ScoreManager {
       this.storageService.setHighScore(this.score)
     }
 
+    this.emitState()
+
     return this.score
   }
 
@@ -98,6 +101,8 @@ export class ScoreManager {
       this.coins %= COINS_PER_ONE_UP
     }
 
+    this.emitState()
+
     return this.getState()
   }
 
@@ -105,6 +110,8 @@ export class ScoreManager {
     const safeAmount = sanitizeNonNegativeInteger(amount, 0)
 
     this.lives += safeAmount
+
+    this.emitState()
 
     return this.lives
   }
@@ -114,6 +121,8 @@ export class ScoreManager {
 
     this.lives = Math.max(0, this.lives - safeAmount)
 
+    this.emitState()
+
     return this.lives
   }
 
@@ -122,7 +131,26 @@ export class ScoreManager {
     this.coins = 0
     this.lives = DEFAULT_STARTING_LIVES
 
+    this.emitState()
+
     return this.getState()
+  }
+
+  public subscribe(listener: ScoreStateListener): () => void {
+    this.listeners.add(listener)
+    listener(this.getState())
+
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  private emitState(): void {
+    const snapshot = this.getState()
+
+    this.listeners.forEach((listener) => {
+      listener(snapshot)
+    })
   }
 }
 
