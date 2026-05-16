@@ -1,4 +1,4 @@
-const DEFAULT_LEVELS = ['1-1', '1-2'] as const
+import { STAGE_IDS } from '@/stages'
 
 function readStringEnv(value: string | undefined, fallback: string): string {
   const trimmedValue = value?.trim()
@@ -28,7 +28,7 @@ function readNumberEnv(
 
 function readLevels(value: string | undefined): string[] {
   if (value === undefined || value.trim().length === 0) {
-    return [...DEFAULT_LEVELS]
+    return [...STAGE_IDS]
   }
 
   const levels = value

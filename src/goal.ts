@@ -1,3 +1,5 @@
+import { resolveNextStageId } from '@/stages'
+
 const FLAGPOLE_BONUS_STEPS = [
   { threshold: 0.2, points: 5000 },
   { threshold: 0.45, points: 2000 },
@@ -17,15 +19,6 @@ export function resolveFlagpoleBonus(normalizedContactHeight: number): number {
   return FLAGPOLE_BONUS_STEPS[FLAGPOLE_BONUS_STEPS.length - 1]?.points ?? 400
 }
 
-export function resolveNextStage(
-  levels: readonly string[],
-  currentStage: string,
-): string | null {
-  const currentStageIndex = levels.indexOf(currentStage)
-
-  if (currentStageIndex < 0) {
-    return levels[0] ?? null
-  }
-
-  return levels[currentStageIndex + 1] ?? null
+export function resolveNextStage(currentStage: string): string | null {
+  return resolveNextStageId(currentStage)
 }

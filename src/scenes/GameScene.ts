@@ -20,6 +20,7 @@ import type { PlayerControls } from '@/entities/player/playerMotion'
 import { MAX_ACTIVE_FIREBALLS, resolveFireballDirection } from '@/fireball'
 import { resolveFlagpoleBonus, resolveNextStage } from '@/goal'
 import { getScoreManager, type ScoreManager } from '@/scoreManager'
+import { getFirstStageId, getStageDefinition, STAGE_IDS } from '@/stages'
 import { createStorageService, type StorageService } from '@/storageService'
 import { GameHud } from '@/ui/GameHud'
 
@@ -84,7 +85,7 @@ export class GameScene extends Phaser.Scene {
 
   private worldHeight = 0
 
-  private currentStageId = GAME_CONFIG.levels[0] ?? '1-1'
+  private currentStageId = getFirstStageId()
 
   private resetRun = false
 
@@ -124,11 +125,11 @@ export class GameScene extends Phaser.Scene {
     if (
       requestedStageId !== undefined &&
       requestedStageId.length > 0 &&
-      GAME_CONFIG.levels.includes(requestedStageId)
+      getStageDefinition(requestedStageId) !== undefined
     ) {
       this.currentStageId = requestedStageId
     } else {
-      this.currentStageId = GAME_CONFIG.levels[0] ?? '1-1'
+      this.currentStageId = getFirstStageId()
     }
 
     this.resetRun = data.resetRun === true
@@ -151,9 +152,17 @@ export class GameScene extends Phaser.Scene {
     this.audioManager = getAudioManager(this)
     this.audioManager.registerDefaultSfx()
     this.audioManager.bindUnlockOnFirstInteraction()
-    this.audioManager.switchBgm(ASSET_KEYS.audio.overworldTheme)
+    const stageDefinition =
+      getStageDefinition(this.currentStageId) ??
+      getStageDefinition(getFirstStageId())
 
-    this.storageService = createStorageService(GAME_CONFIG.levels)
+    if (stageDefinition === undefined) {
+      throw new Error('Missing stage definition while building GameScene.')
+    }
+
+    this.audioManager.switchBgm(stageDefinition.bgmKey)
+
+    this.storageService = createStorageService(STAGE_IDS)
     this.scoreManager = getScoreManager(this.storageService)
 
     if (this.resetRun) {
@@ -166,7 +175,7 @@ export class GameScene extends Phaser.Scene {
     Collectible.ensureAnimations(this)
     Fireball.ensureTexture(this)
 
-    const map = this.make.tilemap({ key: ASSET_KEYS.tilemaps.world11 })
+    const map = this.make.tilemap({ key: stageDefinition.tilemapKey })
     const tileset = map.addTilesetImage(
       'overworld-tiles',
       ASSET_KEYS.tilesets.overworld,
@@ -554,10 +563,7 @@ export class GameScene extends Phaser.Scene {
       0,
       1,
     )
-    const nextStageId = resolveNextStage(
-      GAME_CONFIG.levels,
-      this.currentStageId,
-    )
+    const nextStageId = resolveNextStage(this.currentStageId)
 
     this.goalState = 'sliding'
     this.lastBlockAction = 'goal'
@@ -997,10 +1003,7 @@ export class GameScene extends Phaser.Scene {
     this.syncCameraToPlayer()
 
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body
-    const nextStageId = resolveNextStage(
-      GAME_CONFIG.levels,
-      this.currentStageId,
-    )
+    const nextStageId = resolveNextStage(this.currentStageId)
 
     this.game.canvas.dataset.scene = SCENE_KEYS.game
     this.game.canvas.dataset.mapWidth = String(map.widthInPixels)

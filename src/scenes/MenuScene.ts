@@ -3,7 +3,8 @@ import Phaser from 'phaser'
 import type { StorageLike, StorageService } from '@/storageService'
 import { ASSET_KEYS, SCENE_KEYS } from '@/assets'
 import { getAudioManager } from '@/audioManager'
-import { GAME_CONFIG, GAME_TITLE } from '@/config'
+import { GAME_TITLE } from '@/config'
+import { getFirstStageId, STAGE_IDS } from '@/stages'
 import { createStorageService, resolveBrowserStorage } from '@/storageService'
 
 type MenuAction = 'start' | 'continue' | 'reset'
@@ -40,7 +41,7 @@ export class MenuScene extends Phaser.Scene {
     const { width, height } = this.scale
 
     this.storage = resolveBrowserStorage()
-    this.storageService = createStorageService(GAME_CONFIG.levels, this.storage)
+    this.storageService = createStorageService(STAGE_IDS, this.storage)
 
     this.cameras.main.setBackgroundColor('#0f172a')
 
@@ -58,7 +59,7 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.add
-      .text(width / 2, 122, `Worlds: ${GAME_CONFIG.levels.join(', ')}`, {
+      .text(width / 2, 122, `Worlds: ${STAGE_IDS.join(', ')}`, {
         color: '#94a3b8',
         fontFamily: 'Arial, sans-serif',
         fontSize: '14px',
@@ -151,7 +152,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private startNewGame(): void {
-    const startingStage = GAME_CONFIG.levels[0] ?? '1-1'
+    const startingStage = getFirstStageId()
 
     this.storageService.setFurthestStage(startingStage)
     getAudioManager(this).playSfx(ASSET_KEYS.audio.powerup)

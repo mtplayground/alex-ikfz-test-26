@@ -7,7 +7,8 @@ import {
   TILEMAP_ASSETS,
   TILESET_ASSETS,
 } from '@/assets'
-import { GAME_CONFIG, GAME_TITLE } from '@/config'
+import { GAME_TITLE } from '@/config'
+import { STAGE_IDS } from '@/stages'
 
 export class BootScene extends Phaser.Scene {
   public constructor() {
@@ -43,7 +44,7 @@ export class BootScene extends Phaser.Scene {
       .text(
         width / 2,
         progressBarY + 68,
-        `${GAME_TITLE} • ${GAME_CONFIG.levels.join(', ')}`,
+        `${GAME_TITLE} • ${STAGE_IDS.join(', ')}`,
         {
           color: '#64748b',
           fontFamily: 'Arial, sans-serif',

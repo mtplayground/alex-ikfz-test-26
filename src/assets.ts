@@ -17,6 +17,7 @@ export const ASSET_KEYS = {
   },
   tilemaps: {
     world11: 'world-1-1',
+    world12: 'world-1-2',
   },
   audio: {
     overworldTheme: 'overworld-theme',
@@ -57,6 +58,10 @@ export const TILEMAP_ASSETS = [
   {
     key: ASSET_KEYS.tilemaps.world11,
     tilemapURL: '/assets/tilemaps/world-1-1.json',
+  },
+  {
+    key: ASSET_KEYS.tilemaps.world12,
+    tilemapURL: '/assets/tilemaps/world-1-2.json',
   },
 ] as const
 
@@ -101,6 +106,7 @@ export const CODE_REFERENCED_ASSET_KEYS = {
     ASSET_KEYS.atlases.items,
     ASSET_KEYS.tilesets.overworld,
     ASSET_KEYS.tilemaps.world11,
+    ASSET_KEYS.tilemaps.world12,
     ASSET_KEYS.audio.overworldTheme,
     ASSET_KEYS.audio.jump,
     ASSET_KEYS.audio.coin,
@@ -114,6 +120,7 @@ export const CODE_REFERENCED_ASSET_KEYS = {
     ASSET_KEYS.atlases.items,
     ASSET_KEYS.tilesets.overworld,
     ASSET_KEYS.tilemaps.world11,
+    ASSET_KEYS.tilemaps.world12,
     ASSET_KEYS.audio.overworldTheme,
     ASSET_KEYS.audio.stageClear,
     ASSET_KEYS.audio.jump,
