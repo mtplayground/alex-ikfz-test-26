@@ -3,6 +3,7 @@ import './style.css'
 import Phaser from 'phaser'
 import { GAME_CONFIG, GAME_TITLE } from '@/config'
 import { BootScene } from '@/scenes/BootScene'
+import { MenuScene } from '@/scenes/MenuScene'
 
 const container = document.getElementById('app')
 
@@ -27,7 +28,7 @@ const config: Phaser.Types.Core.GameConfig = {
       },
     },
   },
-  scene: [BootScene],
+  scene: [BootScene, MenuScene],
 }
 
 void new Phaser.Game(config)
