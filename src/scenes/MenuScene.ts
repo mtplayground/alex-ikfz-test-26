@@ -155,7 +155,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     writeMenuSave(this.storage, this.saveData)
-    this.refreshMenu('Started a new game. Progress saved for Continue.')
+    this.scene.start(SCENE_KEYS.playerPreview)
   }
 
   private continueGame(): void {
@@ -164,9 +164,7 @@ export class MenuScene extends Phaser.Scene {
       return
     }
 
-    this.refreshMenu(
-      `Continuing from ${this.saveData.currentLevel}. Gameplay scene arrives in a later issue.`,
-    )
+    this.scene.start(SCENE_KEYS.playerPreview)
   }
 
   private resetProgress(): void {

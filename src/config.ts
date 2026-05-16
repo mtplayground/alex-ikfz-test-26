@@ -79,6 +79,8 @@ export const GAME_CONFIG = {
       260,
       'VITE_PLAYER_RUN_SPEED',
     ),
+    jumpVelocity: -460,
+    jumpReleaseVelocityCap: -190,
   },
   levels: readLevels(import.meta.env.VITE_LEVELS),
 } as const
