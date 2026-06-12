@@ -31,6 +31,10 @@ function sendText(res, status, body) {
   res.end(body);
 }
 
+function logRequest(req, status) {
+  console.log(`${req.method} ${req.url || '/'} ${status}`);
+}
+
 function resolveAsset(urlPath) {
   const decodedPath = decodeURIComponent(urlPath.split('?')[0] || '/');
   const normalized = normalize(decodedPath).replace(/^(\.\.[/\\])+/, '');
@@ -48,12 +52,14 @@ function resolveAsset(urlPath) {
 const server = createServer((req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     sendText(res, 404, 'Not found');
+    logRequest(req, 404);
     return;
   }
 
   const asset = resolveAsset(req.url || '/');
   if (!asset) {
     sendText(res, 404, 'Not found');
+    logRequest(req, 404);
     return;
   }
 
@@ -66,10 +72,12 @@ const server = createServer((req, res) => {
 
   if (req.method === 'HEAD') {
     res.end();
+    logRequest(req, 200);
     return;
   }
 
   createReadStream(asset).pipe(res);
+  res.on('finish', () => logRequest(req, 200));
 });
 
 server.listen(port, host, () => {
